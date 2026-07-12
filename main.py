@@ -1,41 +1,49 @@
+"""Minimal web interface for selecting and analyzing saved Warframe weapons.
+
+The interface contains no editable weapon-stat fields. Weapon definitions are
+loaded from JSON files stored in ``weapons/``. For backwards compatibility,
+``weapon_test.json`` in the project root is also included when present.
+"""
+
 from __future__ import annotations
 
+import json
 import webbrowser
+from pathlib import Path
 from threading import Timer
+from typing import Any
 
 from flask import Flask, jsonify, render_template_string, request
 
 from modules.ai import analyze_weapon
 
 
-app = Flask(__name__)
+APP_ROOT = Path(__file__).resolve().parent
+WEAPONS_DIR = APP_ROOT / "weapons"
+LEGACY_WEAPON_FILE = APP_ROOT / "weapon_test.json"
 
+HOST = "127.0.0.1"
 PORT = 5001
 
+app = Flask(__name__)
 
-HTML = """
-<!DOCTYPE html>
+
+PAGE = """
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Warframe Weapon Optimization Assistant</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Warframe Weapon Analyzer</title>
 
     <style>
         :root {
             color-scheme: dark;
-
-            --background: #080b10;
-            --panel: #111722;
-            --panel-soft: #161e2b;
-            --border: #293548;
-            --text: #eef3f8;
-            --muted: #9caabd;
-            --accent: #61d7d0;
-            --accent-dark: #318f8c;
-            --danger: #ff8181;
-            --success: #88e0a1;
+            font-family:
+                Inter, ui-sans-serif, system-ui, -apple-system,
+                BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #090b10;
+            color: #edf1f7;
         }
 
         * {
@@ -43,1138 +51,355 @@ HTML = """
         }
 
         body {
-            margin: 0;
             min-height: 100vh;
-            font-family:
-                Inter,
-                ui-sans-serif,
-                system-ui,
-                -apple-system,
-                BlinkMacSystemFont,
-                "Segoe UI",
-                sans-serif;
-            color: var(--text);
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
             background:
-                radial-gradient(circle at top, rgba(55, 121, 135, 0.20), transparent 34rem),
-                linear-gradient(180deg, #0b1018 0%, var(--background) 100%);
+                radial-gradient(circle at top, #18202f 0, transparent 42%),
+                #090b10;
         }
 
-        button,
-        input,
-        select {
-            font: inherit;
+        main {
+            width: min(720px, 100%);
         }
 
-        .page {
-            width: min(1180px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 42px 0 70px;
-        }
-
-        .header {
-            margin-bottom: 26px;
-        }
-
-        .eyebrow {
-            margin: 0 0 8px;
-            color: var(--accent);
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
+        header {
+            margin-bottom: 24px;
         }
 
         h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        p {
             margin: 0;
-            max-width: 780px;
-            font-size: clamp(2rem, 4vw, 3.35rem);
-            line-height: 1.05;
-        }
-
-        .subtitle {
-            max-width: 760px;
-            margin: 16px 0 0;
-            color: var(--muted);
-            font-size: 1rem;
-            line-height: 1.65;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.45fr) minmax(310px, 0.75fr);
-            gap: 24px;
-            align-items: start;
+            color: #98a3b5;
         }
 
         .panel {
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            background: rgba(17, 23, 34, 0.94);
-            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+            padding: 20px;
+            border: 1px solid #252d3a;
+            border-radius: 16px;
+            background: rgba(15, 18, 25, 0.92);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
         }
 
-        .form-panel {
-            padding: 24px;
-        }
-
-        .result-panel {
-            position: sticky;
-            top: 22px;
-            min-height: 370px;
-            padding: 24px;
-        }
-
-        .section {
-            padding: 21px 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .section:first-child {
-            padding-top: 0;
-        }
-
-        .section:last-of-type {
-            border-bottom: 0;
-        }
-
-        .section-title {
-            margin: 0 0 6px;
-            font-size: 1.05rem;
-        }
-
-        .section-description {
-            margin: 0 0 18px;
-            color: var(--muted);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .grid {
+        .controls {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
         }
 
-        .grid-three {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+        select,
+        button {
+            min-height: 48px;
+            border-radius: 10px;
+            font: inherit;
         }
 
-        .field {
-            min-width: 0;
-        }
-
-        .field.full {
-            grid-column: 1 / -1;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 7px;
-            color: #dce5ef;
-            font-size: 0.86rem;
-            font-weight: 700;
-        }
-
-        .required::after {
-            content: " *";
-            color: var(--accent);
-        }
-
-        input,
         select {
             width: 100%;
-            min-height: 44px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
+            padding: 0 14px;
+            border: 1px solid #303949;
+            background: #10141c;
+            color: inherit;
             outline: none;
-            padding: 10px 12px;
-            color: var(--text);
-            background: var(--panel-soft);
-            transition:
-                border-color 160ms ease,
-                box-shadow 160ms ease;
         }
 
-        input:focus,
         select:focus {
-            border-color: var(--accent-dark);
-            box-shadow: 0 0 0 3px rgba(97, 215, 208, 0.11);
+            border-color: #7aa2ff;
         }
 
-        .checkbox-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .checkbox-field {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-height: 44px;
-            margin: 0;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 10px 12px;
-            background: var(--panel-soft);
-            cursor: pointer;
-        }
-
-        .checkbox-field input[type="checkbox"] {
-            width: 18px;
-            min-height: 18px;
-            height: 18px;
-            margin: 0;
-            padding: 0;
-            accent-color: var(--accent);
-        }
-
-        small {
-            display: block;
-            margin-top: 6px;
-            color: var(--muted);
-            font-size: 0.76rem;
-            line-height: 1.4;
-        }
-
-        .damage-list {
-            display: grid;
-            gap: 10px;
-        }
-
-        .damage-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 150px 42px;
-            gap: 10px;
-            align-items: end;
-        }
-
-        .icon-button {
-            width: 42px;
-            height: 44px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--muted);
-            background: var(--panel-soft);
-            cursor: pointer;
-        }
-
-        .icon-button:hover {
-            color: var(--danger);
-            border-color: rgba(255, 129, 129, 0.45);
-        }
-
-        .secondary-button {
-            margin-top: 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 10px 14px;
-            color: var(--text);
-            background: transparent;
-            cursor: pointer;
-        }
-
-        .secondary-button:hover {
-            border-color: var(--accent-dark);
-            color: var(--accent);
-        }
-
-        .conditional-group {
-            display: none;
-        }
-
-        .conditional-group.visible {
-            display: block;
-        }
-
-        .submit-button {
-            width: 100%;
-            margin-top: 8px;
+        button {
+            padding: 0 22px;
             border: 0;
-            border-radius: 12px;
-            padding: 14px 18px;
-            color: #031414;
-            background: linear-gradient(135deg, var(--accent), #9de9c4);
-            font-weight: 900;
+            background: #edf1f7;
+            color: #0b0e14;
+            font-weight: 700;
             cursor: pointer;
         }
 
-        .submit-button:hover {
-            filter: brightness(1.06);
+        button:hover:not(:disabled) {
+            background: #cfd8e8;
         }
 
-        .submit-button:disabled {
+        button:disabled {
             cursor: wait;
             opacity: 0.55;
         }
 
-        .result-title {
-            margin: 0 0 8px;
-            font-size: 1.15rem;
+        .status {
+            min-height: 24px;
+            margin-top: 16px;
+            color: #98a3b5;
         }
 
-        .result-help {
-            margin: 0 0 20px;
-            color: var(--muted);
-            font-size: 0.88rem;
-            line-height: 1.55;
+        .status.error {
+            color: #ff8f8f;
         }
 
-        .result-box {
-            min-height: 245px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 17px;
-            color: #dce5ef;
-            background: #0b1018;
-            white-space: pre-wrap;
-            line-height: 1.65;
+        .result {
+            display: none;
+            margin: 16px 0 0;
+            padding: 18px;
             overflow-wrap: anywhere;
-        }
-
-        .result-placeholder {
-            color: #718096;
-        }
-
-        .error {
-            color: var(--danger);
-        }
-
-        .success {
-            color: var(--success);
-        }
-
-        .scope {
-            margin-top: 18px;
-            padding: 14px;
-            border: 1px solid rgba(97, 215, 208, 0.17);
+            white-space: pre-wrap;
+            border: 1px solid #252d3a;
             border-radius: 12px;
-            color: var(--muted);
-            background: rgba(97, 215, 208, 0.05);
-            font-size: 0.79rem;
-            line-height: 1.55;
+            background: #0b0e14;
+            color: #dfe6f1;
+            font: inherit;
+            line-height: 1.6;
         }
 
-        @media (max-width: 920px) {
-            .layout {
+        .result.visible {
+            display: block;
+        }
+
+        @media (max-width: 560px) {
+            .controls {
                 grid-template-columns: 1fr;
             }
 
-            .result-panel {
-                position: static;
-            }
-        }
-
-        @media (max-width: 620px) {
-            .page {
-                width: min(100% - 20px, 1180px);
-                padding-top: 26px;
-            }
-
-            .form-panel,
-            .result-panel {
-                padding: 18px;
-            }
-
-            .grid,
-            .grid-three,
-            .checkbox-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .damage-row {
-                grid-template-columns: 1fr 110px 42px;
+            button {
+                width: 100%;
             }
         }
     </style>
 </head>
 
 <body>
-    <main class="page">
-        <header class="header">
-            <p class="eyebrow">Local AI · Statistical analysis</p>
-
-            <h1>Warframe Weapon Optimization Assistant</h1>
-
-            <p class="subtitle">
-                Captura las estadísticas base del arma, sin mods, Arcanos,
-                Rivens ni mejoras externas, para obtener una evaluación de su
-                tendencia, fortalezas y limitaciones.
-            </p>
+    <main>
+        <header>
+            <h1>Weapon Analyzer</h1>
+            <p>Selecciona un arma guardada y ejecuta el análisis local.</p>
         </header>
 
-        <div class="layout">
-            <section class="panel form-panel">
-                <form id="weaponForm">
-                    <div class="section">
-                        <h2 class="section-title">Clasificación del arma</h2>
+        <section class="panel">
+            {% if weapons %}
+                <div class="controls">
+                    <select id="weapon-select" aria-label="Seleccionar arma">
+                        {% for weapon in weapons %}
+                            <option value="{{ weapon.id }}">
+                                {{ weapon.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
 
-                        <p class="section-description">
-                            La categoría determina qué estadísticas adicionales
-                            deben capturarse.
-                        </p>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="weaponCategory">
-                                    Categoría
-                                </label>
-
-                                <select id="weaponCategory" required>
-                                    <option value="primary">Primaria</option>
-                                    <option value="secondary">Secundaria</option>
-                                    <option value="melee">Melee</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div id="rangedClassification" class="conditional-group">
-                            <div class="grid" style="margin-top: 16px;">
-                                <div class="field">
-                                    <label class="required" for="firingMode">
-                                        Modo de disparo
-                                    </label>
-
-                                    <select id="firingMode">
-                                        <option value="automatic">Automático</option>
-                                        <option value="semi_automatic">Semiautomático</option>
-                                        <option value="burst">Ráfaga</option>
-                                        <option value="charge">Carga</option>
-                                        <option value="continuous">Continuo</option>
-                                    </select>
-                                </div>
-
-                                <div class="field">
-                                    <label class="required" for="damageDelivery">
-                                        Entrega del daño
-                                    </label>
-
-                                    <select id="damageDelivery">
-                                        <option value="hitscan">Hitscan</option>
-                                        <option value="projectile">Proyectil</option>
-                                        <option value="beam">Haz</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="checkbox-grid">
-                                <label class="checkbox-field" for="hasMultiplePellets">
-                                    <input id="hasMultiplePellets" type="checkbox">
-                                    Múltiples perdigones
-                                </label>
-
-                                <label class="checkbox-field" for="isExplosive">
-                                    <input id="isExplosive" type="checkbox">
-                                    Daño explosivo en área
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <h2 class="section-title">Daño base</h2>
-
-                        <p class="section-description">
-                            Introduce los valores absolutos de daño base que muestra
-                            el arma sin mods. El programa calculará el daño total y
-                            su distribución porcentual.
-                        </p>
-
-                        <div id="damageList" class="damage-list"></div>
-
-                        <button
-                            class="secondary-button"
-                            id="addDamageButton"
-                            type="button"
-                        >
-                            Agregar tipo de daño
-                        </button>
-                    </div>
-
-                    <div class="section">
-                        <h2 class="section-title">Estadísticas generales</h2>
-
-                        <div class="grid grid-three">
-                            <div class="field">
-                                <label class="required" for="criticalChance">
-                                    Probabilidad crítica (%)
-                                </label>
-
-                                <input
-                                    id="criticalChance"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    required
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="criticalMultiplier">
-                                    Multiplicador crítico
-                                </label>
-
-                                <input
-                                    id="criticalMultiplier"
-                                    type="number"
-                                    min="1"
-                                    step="any"
-                                    required
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="statusChance">
-                                    Probabilidad de estado (%)
-                                </label>
-
-                                <input
-                                    id="statusChance"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    required
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="rangedSection" class="section conditional-group">
-                        <h2 class="section-title">Estadísticas de arma a distancia</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="fireRate">
-                                    Cadencia de fuego
-                                </label>
-
-                                <input
-                                    id="fireRate"
-                                    type="number"
-                                    min="0.01"
-                                    step="any"
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="multishot">
-                                    Multidisparo
-                                </label>
-
-                                <input
-                                    id="multishot"
-                                    type="number"
-                                    min="0.01"
-                                    step="any"
-                                    value="1"
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="magazineSize">
-                                    Tamaño del cargador
-                                </label>
-
-                                <input
-                                    id="magazineSize"
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="reloadTime">
-                                    Tiempo de recarga (s)
-                                </label>
-
-                                <input
-                                    id="reloadTime"
-                                    type="number"
-                                    min="0.01"
-                                    step="any"
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="meleeSection" class="section conditional-group">
-                        <h2 class="section-title">Estadísticas melee</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="attackSpeed">
-                                    Velocidad de ataque
-                                </label>
-
-                                <input
-                                    id="attackSpeed"
-                                    type="number"
-                                    min="0.01"
-                                    step="any"
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label class="required" for="range">
-                                    Alcance
-                                </label>
-
-                                <input
-                                    id="range"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-                            </div>
-
-                            <div class="field">
-                                <label for="heavyAttackDamage">
-                                    Daño de ataque pesado
-                                </label>
-
-                                <input
-                                    id="heavyAttackDamage"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-
-                                <small>Opcional. Permite evaluar ataques pesados.</small>
-                            </div>
-
-                            <div class="field">
-                                <label for="heavyAttackWindUp">
-                                    Preparación de ataque pesado (s)
-                                </label>
-
-                                <input
-                                    id="heavyAttackWindUp"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-
-                                <small>Opcional. Permite evaluar ataques pesados.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="burstFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de ráfaga</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="burstCount">
-                                    Disparos por ráfaga
-                                </label>
-
-                                <input
-                                    id="burstCount"
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="pelletFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de perdigones</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="pelletCount">
-                                    Cantidad de perdigones
-                                </label>
-
-                                <input
-                                    id="pelletCount"
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="chargeFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de carga</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label class="required" for="chargeTime">
-                                    Tiempo de carga (s)
-                                </label>
-
-                                <input
-                                    id="chargeTime"
-                                    type="number"
-                                    min="0.01"
-                                    step="any"
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="projectileFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de proyectil</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label for="projectileSpeed">
-                                    Velocidad del proyectil
-                                </label>
-
-                                <input
-                                    id="projectileSpeed"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-
-                                <small>Campo opcional durante el MVP.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="explosiveFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de explosión</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label for="explosionRadius">
-                                    Radio de explosión
-                                </label>
-
-                                <input
-                                    id="explosionRadius"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-
-                                <small>Campo opcional durante el MVP.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="beamFields" class="section conditional-group">
-                        <h2 class="section-title">Datos de haz</h2>
-
-                        <div class="grid">
-                            <div class="field">
-                                <label for="beamRange">
-                                    Alcance del haz
-                                </label>
-
-                                <input
-                                    id="beamRange"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                >
-
-                                <small>Campo opcional durante el MVP.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button id="analyzeButton" class="submit-button" type="submit">
-                        Analizar arma
+                    <button id="analyze-button" type="button">
+                        Analizar
                     </button>
-                </form>
-            </section>
+                </div>
 
-            <aside class="panel result-panel">
-                <h2 class="result-title">Resultado del análisis</h2>
-
-                <p class="result-help">
-                    La respuesta debe identificar la tendencia del arma,
-                    fortalezas, debilidades, estilo recomendado y estadísticas
-                    que conviene o no conviene priorizar.
+                <div id="status" class="status"></div>
+                <pre id="result" class="result"></pre>
+            {% else %}
+                <p>
+                    No se encontraron armas. Agrega archivos JSON dentro de
+                    <code>weapons/</code>.
                 </p>
-
-                <div id="resultBox" class="result-box result-placeholder">
-                    Completa el formulario y ejecuta el análisis.
-                </div>
-
-                <div class="scope">
-                    Alcance del MVP: recomendaciones estadísticas generales.
-                    No se solicitan mods concretos, polaridades, Formas, Arcanos,
-                    Rivens ni configuraciones completas.
-                </div>
-            </aside>
-        </div>
+            {% endif %}
+        </section>
     </main>
 
+    {% if weapons %}
     <script>
-        const damageTypes = [
-            ["impact", "Impacto"],
-            ["puncture", "Perforación"],
-            ["slash", "Corte"],
-            ["heat", "Calor"],
-            ["cold", "Frío"],
-            ["electricity", "Electricidad"],
-            ["toxin", "Toxina"],
-            ["blast", "Explosión"],
-            ["corrosive", "Corrosivo"],
-            ["gas", "Gas"],
-            ["magnetic", "Magnético"],
-            ["radiation", "Radiación"],
-            ["viral", "Viral"],
-            ["void", "Vacío"]
-        ];
+        const selector = document.querySelector("#weapon-select");
+        const button = document.querySelector("#analyze-button");
+        const status = document.querySelector("#status");
+        const result = document.querySelector("#result");
 
-        const form = document.getElementById("weaponForm");
-        const weaponCategory = document.getElementById("weaponCategory");
-        const firingMode = document.getElementById("firingMode");
-        const damageDelivery = document.getElementById("damageDelivery");
-        const hasMultiplePellets = document.getElementById("hasMultiplePellets");
-        const isExplosive = document.getElementById("isExplosive");
-        const resultBox = document.getElementById("resultBox");
-        const analyzeButton = document.getElementById("analyzeButton");
-        const damageList = document.getElementById("damageList");
-
-        const conditionalSections = {
-            rangedClassification: document.getElementById("rangedClassification"),
-            rangedSection: document.getElementById("rangedSection"),
-            meleeSection: document.getElementById("meleeSection"),
-            burst: document.getElementById("burstFields"),
-            pellets: document.getElementById("pelletFields"),
-            charge: document.getElementById("chargeFields"),
-            projectile: document.getElementById("projectileFields"),
-            explosive: document.getElementById("explosiveFields"),
-            beam: document.getElementById("beamFields")
-        };
-
-        const conditionalInputs = {
-            rangedClassification: ["firingMode", "damageDelivery"],
-            rangedSection: ["fireRate", "multishot", "magazineSize", "reloadTime"],
-            meleeSection: ["attackSpeed", "range"],
-            burst: ["burstCount"],
-            pellets: ["pelletCount"],
-            charge: ["chargeTime"]
-        };
-
-        function setSectionVisibility(section, visible) {
-            section.classList.toggle("visible", visible);
+        function setLoading(isLoading) {
+            selector.disabled = isLoading;
+            button.disabled = isLoading;
+            button.textContent = isLoading ? "Analizando…" : "Analizar";
         }
 
-        function setRequired(ids, required) {
-            ids.forEach((id) => {
-                document.getElementById(id).required = required;
-            });
-        }
+        button.addEventListener("click", async () => {
+            const weaponId = selector.value;
 
-        function updateVisibleFields() {
-            const isMelee = weaponCategory.value === "melee";
-            const isRanged = !isMelee;
-
-            setSectionVisibility(conditionalSections.rangedClassification, isRanged);
-            setSectionVisibility(conditionalSections.rangedSection, isRanged);
-            setSectionVisibility(conditionalSections.meleeSection, isMelee);
-
-            setRequired(conditionalInputs.rangedClassification, isRanged);
-            setRequired(conditionalInputs.rangedSection, isRanged);
-            setRequired(conditionalInputs.meleeSection, isMelee);
-
-            const isBurst = isRanged && firingMode.value === "burst";
-            const isCharge = isRanged && firingMode.value === "charge";
-            const usesProjectiles = isRanged && damageDelivery.value === "projectile";
-            const usesBeam = isRanged && damageDelivery.value === "beam";
-            const usesPellets = isRanged && hasMultiplePellets.checked;
-            const usesExplosion = isRanged && isExplosive.checked;
-
-            setSectionVisibility(conditionalSections.burst, isBurst);
-            setSectionVisibility(conditionalSections.charge, isCharge);
-            setSectionVisibility(conditionalSections.projectile, usesProjectiles);
-            setSectionVisibility(conditionalSections.beam, usesBeam);
-            setSectionVisibility(conditionalSections.pellets, usesPellets);
-            setSectionVisibility(conditionalSections.explosive, usesExplosion);
-
-            setRequired(conditionalInputs.burst, isBurst);
-            setRequired(conditionalInputs.charge, isCharge);
-            setRequired(conditionalInputs.pellets, usesPellets);
-        }
-
-        function createDamageRow(type = "", damage = "") {
-            const row = document.createElement("div");
-            row.className = "damage-row";
-
-            const typeField = document.createElement("div");
-            typeField.className = "field";
-
-            const typeLabel = document.createElement("label");
-            typeLabel.textContent = "Tipo de daño";
-
-            const typeSelect = document.createElement("select");
-            typeSelect.className = "damage-type";
-
-            damageTypes.forEach(([value, label]) => {
-                const option = document.createElement("option");
-                option.value = value;
-                option.textContent = label;
-                option.selected = value === type;
-                typeSelect.appendChild(option);
-            });
-
-            typeField.append(typeLabel, typeSelect);
-
-            const damageField = document.createElement("div");
-            damageField.className = "field";
-
-            const damageLabel = document.createElement("label");
-            damageLabel.textContent = "Daño base";
-
-            const damageInput = document.createElement("input");
-            damageInput.className = "base-damage";
-            damageInput.type = "number";
-            damageInput.min = "0";
-            damageInput.step = "any";
-            damageInput.value = damage;
-
-            damageField.append(damageLabel, damageInput);
-
-            const removeButton = document.createElement("button");
-            removeButton.type = "button";
-            removeButton.className = "icon-button";
-            removeButton.title = "Eliminar tipo de daño";
-            removeButton.textContent = "×";
-
-            removeButton.addEventListener("click", () => {
-                if (damageList.children.length > 1) {
-                    row.remove();
-                }
-            });
-
-            row.append(typeField, damageField, removeButton);
-            damageList.appendChild(row);
-        }
-
-        function numberValue(id) {
-            const rawValue = document.getElementById(id).value;
-
-            if (rawValue === "") {
-                return null;
-            }
-
-            return Number(rawValue);
-        }
-
-        function buildBaseDamage() {
-            const baseDamage = {};
-
-            damageList.querySelectorAll(".damage-row").forEach((row) => {
-                const type = row.querySelector(".damage-type").value;
-                const rawDamage = row.querySelector(".base-damage").value;
-
-                if (rawDamage === "") {
-                    return;
-                }
-
-                const damage = Number(rawDamage);
-
-                if (!Number.isFinite(damage) || damage <= 0) {
-                    return;
-                }
-
-                baseDamage[type] = (baseDamage[type] || 0) + damage;
-            });
-
-            return baseDamage;
-        }
-
-        function buildWeaponData() {
-            const category = weaponCategory.value;
-
-            const weaponData = {
-                weapon_category: category,
-                base_damage: buildBaseDamage(),
-                critical_chance_percent: numberValue("criticalChance"),
-                critical_multiplier: numberValue("criticalMultiplier"),
-                status_chance_percent: numberValue("statusChance")
-            };
-
-            if (category === "primary" || category === "secondary") {
-                weaponData.firing_mode = firingMode.value;
-                weaponData.damage_delivery = damageDelivery.value;
-                weaponData.has_multiple_pellets = hasMultiplePellets.checked;
-                weaponData.is_explosive = isExplosive.checked;
-                weaponData.fire_rate = numberValue("fireRate");
-                weaponData.multishot = numberValue("multishot");
-                weaponData.magazine_size = numberValue("magazineSize");
-                weaponData.reload_time = numberValue("reloadTime");
-
-                if (firingMode.value === "burst") {
-                    weaponData.shots_per_burst = numberValue("burstCount");
-                }
-
-                if (firingMode.value === "charge") {
-                    weaponData.charge_time = numberValue("chargeTime");
-                }
-
-                if (hasMultiplePellets.checked) {
-                    weaponData.pellet_count = numberValue("pelletCount");
-                }
-
-                if (damageDelivery.value === "projectile") {
-                    const projectileSpeed = numberValue("projectileSpeed");
-
-                    if (projectileSpeed !== null) {
-                        weaponData.projectile_speed = projectileSpeed;
-                    }
-                }
-
-                if (isExplosive.checked) {
-                    const explosionRadius = numberValue("explosionRadius");
-
-                    if (explosionRadius !== null) {
-                        weaponData.explosion_radius = explosionRadius;
-                    }
-                }
-
-                if (damageDelivery.value === "beam") {
-                    const beamRange = numberValue("beamRange");
-
-                    if (beamRange !== null) {
-                        weaponData.beam_range = beamRange;
-                    }
-                }
-            }
-
-            if (category === "melee") {
-                weaponData.attack_speed = numberValue("attackSpeed");
-                weaponData.range = numberValue("range");
-
-                const heavyAttackDamage = numberValue("heavyAttackDamage");
-                const heavyAttackWindUp = numberValue("heavyAttackWindUp");
-
-                if (heavyAttackDamage !== null) {
-                    weaponData.heavy_attack_damage = heavyAttackDamage;
-                }
-
-                if (heavyAttackWindUp !== null) {
-                    weaponData.heavy_attack_wind_up = heavyAttackWindUp;
-                }
-            }
-
-            return weaponData;
-        }
-
-        function validateBaseDamage() {
-            const baseDamage = buildBaseDamage();
-
-            if (Object.keys(baseDamage).length === 0) {
-                throw new Error("Introduce al menos un valor de daño base mayor que cero.");
-            }
-        }
-
-        async function submitAnalysis(event) {
-            event.preventDefault();
-
-            resultBox.className = "result-box";
-            resultBox.textContent = "Analizando estadísticas...";
-            analyzeButton.disabled = true;
-            analyzeButton.textContent = "Analizando...";
+            status.className = "status";
+            status.textContent = "El modelo local está procesando el arma…";
+            result.classList.remove("visible");
+            result.textContent = "";
+            setLoading(true);
 
             try {
-                validateBaseDamage();
-
                 const response = await fetch("/analyze", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify(buildWeaponData())
+                    body: JSON.stringify({
+                        weapon_id: weaponId
+                    })
                 });
 
-                const data = await response.json();
+                const payload = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || "No fue posible completar el análisis.");
+                    throw new Error(
+                        payload.error || "No fue posible completar el análisis."
+                    );
                 }
 
-                const result = data.result;
-
-                resultBox.className = "result-box success";
-                resultBox.textContent = typeof result === "string"
-                    ? result
-                    : JSON.stringify(result, null, 2);
-
+                status.textContent = "";
+                result.textContent = payload.result;
+                result.classList.add("visible");
             } catch (error) {
-                resultBox.className = "result-box error";
-                resultBox.textContent = error.message;
-
+                status.className = "status error";
+                status.textContent = error.message;
             } finally {
-                analyzeButton.disabled = false;
-                analyzeButton.textContent = "Analizar arma";
+                setLoading(false);
             }
-        }
-
-        document
-            .getElementById("addDamageButton")
-            .addEventListener("click", () => createDamageRow("impact", ""));
-
-        weaponCategory.addEventListener("change", updateVisibleFields);
-        firingMode.addEventListener("change", updateVisibleFields);
-        damageDelivery.addEventListener("change", updateVisibleFields);
-        hasMultiplePellets.addEventListener("change", updateVisibleFields);
-        isExplosive.addEventListener("change", updateVisibleFields);
-        form.addEventListener("submit", submitAnalysis);
-
-        createDamageRow("impact", "");
-        createDamageRow("puncture", "");
-        createDamageRow("slash", "");
-
-        updateVisibleFields();
+        });
     </script>
+    {% endif %}
 </body>
 </html>
 """
 
 
+def _read_weapon_file(path: Path) -> dict[str, Any] | None:
+    """Read one weapon JSON file.
+
+    Invalid files are skipped and recorded in the Flask log so one malformed
+    test case does not prevent the interface from opening.
+    """
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        app.logger.exception("Could not load weapon file: %s", path)
+        return None
+
+    if not isinstance(data, dict):
+        app.logger.error("Weapon file root must be an object: %s", path)
+        return None
+
+    return data
+
+
+def load_weapon_catalog() -> dict[str, dict[str, Any]]:
+    """Load all selectable weapons from disk.
+
+    Files in ``weapons/`` are preferred. ``weapon_test.json`` remains available
+    to keep the current project structure working while the catalog is created.
+    """
+
+    files: list[Path] = []
+
+    if WEAPONS_DIR.is_dir():
+        files.extend(sorted(WEAPONS_DIR.glob("*.json")))
+
+    if LEGACY_WEAPON_FILE.is_file():
+        files.append(LEGACY_WEAPON_FILE)
+
+    catalog: dict[str, dict[str, Any]] = {}
+
+    for path in files:
+        data = _read_weapon_file(path)
+        if data is None:
+            continue
+
+        base_id = path.stem
+        weapon_id = base_id
+        suffix = 2
+
+        while weapon_id in catalog:
+            weapon_id = f"{base_id}-{suffix}"
+            suffix += 1
+
+        display_name = str(
+            data.get("weapon_name")
+            or data.get("name")
+            or path.stem.replace("_", " ").replace("-", " ").title()
+        ).strip()
+
+        catalog[weapon_id] = {
+            "name": display_name or path.stem,
+            "data": data,
+            "source_path": str(path),
+        }
+
+    return catalog
+
+
 @app.get("/")
-def index():
-    return render_template_string(HTML)
+def index() -> str:
+    catalog = load_weapon_catalog()
+
+    weapons = [
+        {
+            "id": weapon_id,
+            "name": entry["name"],
+        }
+        for weapon_id, entry in catalog.items()
+    ]
+
+    weapons.sort(key=lambda item: item["name"].casefold())
+
+    return render_template_string(
+        PAGE,
+        weapons=weapons,
+    )
 
 
 @app.post("/analyze")
 def analyze():
-    weapon_data = request.get_json(silent=True)
+    payload = request.get_json(silent=True)
 
-    if not isinstance(weapon_data, dict):
-        return jsonify({
-            "error": "No se recibieron datos válidos del arma."
-        }), 400
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Solicitud inválida."}), 400
+
+    weapon_id = str(payload.get("weapon_id") or "").strip()
+    catalog = load_weapon_catalog()
+    selected = catalog.get(weapon_id)
+
+    if selected is None:
+        return jsonify({"error": "El arma seleccionada no existe."}), 404
 
     try:
-        result = analyze_weapon(weapon_data)
-        return jsonify({
-            "result": result
-        })
-
+        result = analyze_weapon(selected["data"])
     except Exception:
-        app.logger.exception("Error al analizar el arma.")
-        return jsonify({
-            "error": "No fue posible completar el análisis."
-        }), 500
+        app.logger.exception(
+            "Could not analyze weapon from %s",
+            selected["source_path"],
+        )
+        return jsonify(
+            {"error": "No fue posible completar el análisis local."}
+        ), 500
+
+    return jsonify(
+        {
+            "weapon": selected["name"],
+            "result": result,
+        }
+    )
 
 
 def open_browser() -> None:
-    webbrowser.open_new(f"http://127.0.0.1:{PORT}")
+    """Open the local application after Flask starts."""
+
+    webbrowser.open_new(f"http://{HOST}:{PORT}")
 
 
 def main() -> None:
-    Timer(1, open_browser).start()
+    """Start the local single-user application."""
+
+    Timer(1.0, open_browser).start()
 
     app.run(
-        host="127.0.0.1",
+        host=HOST,
         port=PORT,
         debug=False,
         threaded=False,
-        use_reloader=False
+        use_reloader=False,
     )
 
 
