@@ -1,20 +1,37 @@
 {
+  "weapon_name": "Amprex",
   "data_source": "manual",
+
   "weapon_category": "primary",
-  "firing_mode": "automatic",
-  "damage_delivery": "hitscan",
+  "weapon_class": "rifle",
+
+  "firing_mode": "continuous",
+  "damage_delivery": "beam",
+  "reload_type": "magazine",
+
   "has_multiple_pellets": false,
   "is_explosive": false,
+
   "base_damage": {
-    "impact": 1.2,
-    "puncture": 4.8,
-    "slash": 6.0
+    "electricity": 22
   },
-  "critical_chance_percent": 30,
-  "critical_multiplier": 3.0,
-  "status_chance_percent": 10,
-  "fire_rate": 15,
+
+  "critical_chance_percent": 32,
+  "critical_multiplier": 2.2,
+  "status_chance_percent": 22,
+
+  "fire_rate": 12,
   "multishot": 1,
-  "magazine_size": 200,
-  "reload_time": 3
+
+  "magazine_size": 100,
+  "reload_time": 2.6,
+
+  "ammo_capacity": 700,
+  "ammo_pickup": 60,
+  "ammo_cost_per_damage_tick": 0.5,
+
+  "beam_range": 18,
+  "punch_through": 0,
+
+  "special_mechanic": "The continuous main beam chains to up to 3 additional nearby enemies within 10 meters. Each successive chain deals 50% of the previous beam's damage. The main beam damage ramps up while continuously firing."
 }

@@ -1,859 +1,409 @@
-# modules/weapon_interpreter.py
+"""Coordinate four independent logical AI stages.
+
+The module does not decide weapon roles with mathematical thresholds. It only
+runs each stage, validates strict JSON, and persists selected results between
+stages.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import json
+import re
+from collections.abc import Callable, Mapping
 from typing import Any
 
+from modules.prompt_builder import (
+    COMFORT_KEYS,
+    JOB_KEYS,
+    available_improvement_parameters,
+    build_behavior_prompt,
+    build_comfort_prompt,
+    build_improvement_prompt,
+    build_job_prompt,
+)
 
-INTERPRETATION_VERSION = 1
-SUPPORTED_WEAPON_SCHEMA = 3
 
-RATING_LABELS = {
-    "very_low": "muy bajo",
-    "low": "bajo",
-    "moderate": "moderado",
-    "high": "alto",
-    "very_high": "muy alto",
+ANALYSIS_VERSION = 3
+
+BEHAVIOR_MAX_TOKENS = 140
+JOB_MAX_TOKENS = 120
+IMPROVEMENT_MAX_TOKENS = 180
+COMFORT_MAX_TOKENS = 140
+
+# stage_name, user_prompt, max_tokens -> generated text
+StageGenerator = Callable[[str, str, int], str]
+
+
+JOB_LABELS_ES = {
+    "sustained_damage": "daño sostenido",
+    "focused_damage": "daño concentrado",
+    "group_clear": "limpieza de grupos",
+    "area_control": "control de área",
+    "status_application": "aplicación de estados",
+    "enemy_priming": "preparación de enemigos",
+    "precision_attacks": "ataques precisos",
+    "heavy_attacks": "ataques pesados",
+    "general_use": "uso general",
 }
 
-DAMAGE_LABELS = {
-    "impact": "Impacto",
-    "puncture": "Perforación",
-    "slash": "Corte",
-    "heat": "Calor",
-    "cold": "Frío",
-    "electricity": "Electricidad",
-    "toxin": "Toxina",
-    "blast": "Explosión",
-    "corrosive": "Corrosivo",
-    "gas": "Gas",
-    "magnetic": "Magnético",
-    "radiation": "Radiación",
-    "viral": "Viral",
-    "void": "Vacío",
+COMFORT_LABELS_ES = {
+    "comfortable": "cómoda",
+    "manageable": "manejable",
+    "demanding": "exigente",
+    "undetermined": "no determinada",
+}
+
+PARAMETER_LABELS_ES = {
+    "base_damage": "daño base",
+    "critical_chance": "probabilidad crítica",
+    "critical_multiplier": "multiplicador crítico",
+    "status_chance": "probabilidad de estado",
+    "fire_rate": "cadencia",
+    "multishot": "multidisparo",
+    "magazine_size": "cargador",
+    "reload_time": "recarga",
+    "ammo_capacity": "capacidad de munición",
+    "accuracy": "precisión",
+    "recoil": "retroceso",
+    "punch_through": "Punch Through",
+    "projectile_speed": "velocidad de proyectil",
+    "beam_range": "alcance del haz",
+    "explosion_radius": "radio de explosión",
+    "charge_time": "tiempo de carga",
+    "battery_recharge_rate": "recarga de batería",
+    "reload_per_round": "recarga por cartucho",
+    "attack_speed": "velocidad de ataque",
+    "melee_range": "alcance melee",
+    "heavy_attack_damage": "daño de ataque pesado",
+    "heavy_attack_wind_up": "preparación del ataque pesado",
+    "none": "ninguna mejora dominante",
+}
+
+DIRECTION_LABELS_ES = {
+    "reinforce": "reforzar",
+    "correct_friction": "corregir fricción",
+    "none": "sin cambio",
 }
 
 
-class WeaponInterpretationError(ValueError):
-    pass
+class StageFormatError(ValueError):
+    """The model answered, but its JSON did not match the stage schema."""
 
 
-def _as_mapping(value: Any, field: str) -> Mapping[str, Any]:
+def _mapping(value: Any, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise WeaponInterpretationError(
-            f"La sección {field} no contiene un Mapping válido."
-        )
+        raise StageFormatError(f"Missing structured section: {name}.")
     return value
 
 
-def _number(value: Any, field: str) -> float:
-    if isinstance(value, bool):
-        raise WeaponInterpretationError(f"{field} debe ser numérico.")
+def _strip_code_fence(text: str) -> str:
+    value = str(text or "").strip()
+    value = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return value.strip()
+
+
+def _json_object(text: str) -> dict[str, Any]:
+    cleaned = _strip_code_fence(text)
     try:
-        return float(value)
-    except (TypeError, ValueError) as error:
-        raise WeaponInterpretationError(
-            f"{field} debe ser numérico."
-        ) from error
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as error:
+        raise StageFormatError("Response is not valid JSON.") from error
+
+    if not isinstance(data, dict):
+        raise StageFormatError("Response JSON must be an object.")
+    return data
 
 
-def _round(value: float, decimals: int = 4) -> float:
-    return round(float(value), decimals)
+def _short_text(value: Any, field: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise StageFormatError(f"Missing text field: {field}.")
+    return text
 
 
-def _clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
-    return max(minimum, min(maximum, value))
-
-
-def _piecewise_score(
-    value: float,
-    points: Sequence[tuple[float, float]],
-) -> float:
-    if not points:
-        return 0.0
-
-    ordered = sorted(points, key=lambda item: item[0])
-
-    if value <= ordered[0][0]:
-        return _clamp(ordered[0][1])
-
-    for (x0, y0), (x1, y1) in zip(ordered, ordered[1:]):
-        if value <= x1:
-            if x1 == x0:
-                return _clamp(y1)
-            ratio = (value - x0) / (x1 - x0)
-            return _clamp(y0 + ratio * (y1 - y0))
-
-    return _clamp(ordered[-1][1])
-
-
-def _rating(score: float) -> str:
-    if score < 0.20:
-        return "very_low"
-    if score < 0.40:
-        return "low"
-    if score < 0.62:
-        return "moderate"
-    if score < 0.82:
-        return "high"
-    return "very_high"
-
-
-def _finding(
-    code: str,
-    statement: str,
-    evidence: Sequence[str],
-    *,
-    importance: str = "medium",
-) -> dict[str, Any]:
-    return {
-        "code": code,
-        "statement": statement,
-        "evidence": list(evidence),
-        "importance": importance,
-    }
-
-
-def _damage_profile(damage: Mapping[str, Any]) -> dict[str, Any]:
-    dominant_type = damage.get("dominant_type")
-    dominant_percent = _number(
-        damage.get("dominant_percent", 0.0),
-        "damage.dominant_percent",
-    )
-
-    if dominant_percent >= 65.0:
-        concentration = "strongly_concentrated"
-        concentration_label = "muy concentrada"
-    elif dominant_percent >= 45.0:
-        concentration = "concentrated"
-        concentration_label = "concentrada"
-    else:
-        concentration = "mixed"
-        concentration_label = "repartida"
-
-    dominant_label = (
-        DAMAGE_LABELS.get(str(dominant_type), str(dominant_type))
-        if dominant_type
-        else "sin tipo dominante"
-    )
-
-    return {
-        "dominant_type": dominant_type,
-        "dominant_label": dominant_label,
-        "dominant_percent": _round(dominant_percent),
-        "concentration": concentration,
-        "concentration_label": concentration_label,
-        "physical_percent": _round(
-            _number(damage.get("physical_percent", 0.0), "physical_percent")
-        ),
-        "elemental_percent": _round(
-            _number(damage.get("elemental_percent", 0.0), "elemental_percent")
-        ),
-        "evidence": (
-            f"{dominant_label} representa {dominant_percent:.1f} % del daño base; "
-            f"la distribución es {concentration_label}."
-        ),
-    }
-
-
-def _critical_profile(
-    core_stats: Mapping[str, Any],
-    derived: Mapping[str, Any],
-    *,
-    category: str,
-) -> dict[str, Any]:
-    chance = _number(
-        core_stats.get("critical_chance_percent"),
-        "critical_chance_percent",
-    )
-    multiplier = _number(
-        core_stats.get("critical_multiplier"),
-        "critical_multiplier",
-    )
-    expected_factor = _number(
-        derived.get("expected_critical_damage_factor"),
-        "expected_critical_damage_factor",
-    )
-
-    chance_score = _piecewise_score(
-        chance,
-        (
-            (0.0, 0.0),
-            (10.0, 0.15),
-            (20.0, 0.42),
-            (30.0, 0.68),
-            (40.0, 0.84),
-            (60.0, 1.0),
-        ),
-    )
-    multiplier_score = _piecewise_score(
-        multiplier,
-        (
-            (1.0, 0.0),
-            (1.5, 0.15),
-            (2.0, 0.45),
-            (2.5, 0.68),
-            (3.0, 0.84),
-            (4.0, 1.0),
-        ),
-    )
-
-    score = 0.56 * chance_score + 0.44 * multiplier_score
-
-    if chance < 10.0:
-        score = min(score, 0.35)
-    if multiplier < 1.5:
-        score = min(score, 0.35)
-
-    reliability = chance
-    reliability_source = "probabilidad crítica por impacto"
-
-    if category in {"primary", "secondary"}:
-        reliability = _number(
-            derived.get(
-                "chance_at_least_one_critical_hit_per_shot_percent",
-                chance,
-            ),
-            "chance_at_least_one_critical_hit_per_shot_percent",
-        )
-        reliability_source = "probabilidad de al menos un crítico por disparo"
-
-    return {
-        "score": _round(score),
-        "rating": _rating(score),
-        "rating_label": RATING_LABELS[_rating(score)],
-        "chance_percent": _round(chance),
-        "multiplier": _round(multiplier),
-        "expected_damage_factor": _round(expected_factor),
-        "reliability_percent": _round(reliability),
-        "evidence": [
-            (
-                f"{chance:.1f} % de probabilidad crítica junto con "
-                f"{multiplier:.2f}x de multiplicador."
-            ),
-            (
-                f"El factor crítico promedio calculado es "
-                f"{expected_factor:.2f}x."
-            ),
-            (
-                f"La {reliability_source} es aproximadamente "
-                f"{reliability:.1f} %."
-            ),
-        ],
-    }
-
-
-def _status_profile(
-    core_stats: Mapping[str, Any],
-    derived: Mapping[str, Any],
-    *,
-    category: str,
-) -> dict[str, Any]:
-    chance = _number(
-        core_stats.get("status_chance_percent"),
-        "status_chance_percent",
-    )
-
-    per_hit_score = _piecewise_score(
-        chance,
-        (
-            (0.0, 0.0),
-            (10.0, 0.20),
-            (20.0, 0.45),
-            (30.0, 0.65),
-            (50.0, 0.85),
-            (100.0, 1.0),
-        ),
-    )
-
-    evidence = [f"La probabilidad de estado por impacto es {chance:.1f} %."]
-    throughput = None
-    reliability = chance
-    score = per_hit_score
-    throughput_rating = None
-
-    if category in {"primary", "secondary"}:
-        throughput = _number(
-            derived.get("expected_status_procs_per_second"),
-            "expected_status_procs_per_second",
-        )
-        reliability = _number(
-            derived.get(
-                "chance_at_least_one_status_proc_per_shot_percent",
-                chance,
-            ),
-            "chance_at_least_one_status_proc_per_shot_percent",
-        )
-        throughput_score = _piecewise_score(
-            throughput,
-            (
-                (0.0, 0.0),
-                (0.5, 0.22),
-                (1.0, 0.42),
-                (2.0, 0.64),
-                (4.0, 0.82),
-                (8.0, 1.0),
-            ),
-        )
-        score = 0.56 * per_hit_score + 0.44 * throughput_score
-        throughput_rating = _rating(throughput_score)
-        evidence.extend([
-            (
-                f"La frecuencia nominal produce cerca de "
-                f"{throughput:.2f} procs esperados por segundo."
-            ),
-            (
-                f"La probabilidad de al menos un proc por disparo es "
-                f"aproximadamente {reliability:.1f} %."
-            ),
-        ])
-    else:
-        evidence.append(
-            "No se transforma attack_speed en procs por segundo porque faltan postura y animaciones."
-        )
-
-    return {
-        "score": _round(score),
-        "rating": _rating(score),
-        "rating_label": RATING_LABELS[_rating(score)],
-        "chance_percent": _round(chance),
-        "reliability_percent": _round(reliability),
-        "expected_procs_per_second": (
-            _round(throughput) if throughput is not None else None
-        ),
-        "throughput_rating": throughput_rating,
-        "evidence": evidence,
-    }
-
-
-def _impact_frequency_profile(
-    derived: Mapping[str, Any],
-) -> dict[str, Any] | None:
-    value = derived.get("nominal_instances_per_second")
+def _string_list(value: Any, field: str, maximum: int) -> list[str]:
     if value is None:
-        return None
+        return []
+    if not isinstance(value, list):
+        raise StageFormatError(f"{field} must be a list.")
 
-    instances = _number(value, "nominal_instances_per_second")
+    result = [str(item).strip() for item in value if str(item).strip()]
+    return result[:maximum]
 
-    if instances < 3.0:
-        rating = "low"
-        label = "baja"
-    elif instances < 8.0:
-        rating = "moderate"
-        label = "moderada"
-    elif instances < 20.0:
-        rating = "high"
-        label = "alta"
-    else:
-        rating = "very_high"
-        label = "muy alta"
+
+def parse_behavior_response(text: str) -> dict[str, Any]:
+    data = _json_object(text)
+    return {
+        "summary": _short_text(data.get("summary_es"), "summary_es"),
+        "traits": _string_list(data.get("traits_es"), "traits_es", 3),
+    }
+
+
+def parse_job_response(text: str) -> dict[str, Any]:
+    data = _json_object(text)
+    job = str(data.get("job") or "").strip()
+    if job not in JOB_KEYS:
+        raise StageFormatError("job is not an allowed enum value.")
 
     return {
-        "instances_per_second": _round(instances),
-        "rating": rating,
-        "rating_label": label,
-        "evidence": (
-            f"La estimación nominal es de {instances:.2f} instancias de impacto por segundo."
+        "key": job,
+        "name": JOB_LABELS_ES[job],
+        "reason": _short_text(data.get("reason_es"), "reason_es"),
+    }
+
+
+def parse_improvement_response(
+    text: str,
+    allowed_parameters: tuple[str, ...],
+) -> list[dict[str, str]]:
+    data = _json_object(text)
+    items = data.get("improvements")
+    if not isinstance(items, list) or not items:
+        raise StageFormatError("improvements must be a non-empty list.")
+
+    allowed = set(allowed_parameters)
+    allowed.add("none")
+    results: list[dict[str, str]] = []
+
+    for item in items[:3]:
+        if not isinstance(item, Mapping):
+            raise StageFormatError("Each improvement must be an object.")
+
+        parameter = str(item.get("parameter") or "").strip()
+        direction = str(item.get("direction") or "").strip()
+        reason = _short_text(item.get("reason_es"), "reason_es")
+
+        if parameter not in allowed:
+            raise StageFormatError(
+                f"Improvement parameter is not allowed: {parameter}."
+            )
+        allowed_directions = {"reinforce", "correct_friction"}
+        if parameter == "none":
+            allowed_directions.add("none")
+        if direction not in allowed_directions:
+            raise StageFormatError("Invalid improvement direction.")
+
+        results.append(
+            {
+                "parameter_key": parameter,
+                "parameter": PARAMETER_LABELS_ES.get(parameter, parameter),
+                "direction_key": direction,
+                "direction": DIRECTION_LABELS_ES[direction],
+                "reason": reason,
+            }
+        )
+
+    if any(item["parameter_key"] == "none" for item in results):
+        if len(results) != 1:
+            raise StageFormatError("none must be the only improvement.")
+
+    return results
+
+
+def parse_comfort_response(text: str) -> dict[str, Any]:
+    data = _json_object(text)
+    rating = str(data.get("rating") or "").strip()
+    if rating not in COMFORT_KEYS:
+        raise StageFormatError("rating is not an allowed enum value.")
+
+    return {
+        "rating_key": rating,
+        "rating": COMFORT_LABELS_ES[rating],
+        "description": _short_text(
+            data.get("description_es"),
+            "description_es",
+        ),
+        "frictions": _string_list(
+            data.get("frictions_es"),
+            "frictions_es",
+            2,
         ),
     }
 
 
-def _continuity_profile(
-    classification: Mapping[str, Any],
-    derived: Mapping[str, Any],
-) -> dict[str, Any]:
-    magazine_duration = _number(
-        derived.get("magazine_duration_seconds"),
-        "magazine_duration_seconds",
-    )
-    reload_type = str(classification.get("reload_type", "magazine"))
-
-    if magazine_duration < 2.0:
-        window = "very_short"
-        window_label = "muy corta"
-    elif magazine_duration < 5.0:
-        window = "short"
-        window_label = "corta"
-    elif magazine_duration < 10.0:
-        window = "medium"
-        window_label = "media"
-    elif magazine_duration < 20.0:
-        window = "long"
-        window_label = "larga"
-    else:
-        window = "very_long"
-        window_label = "muy larga"
-
-    downtime = None
-    for key in (
-        "reload_downtime_percent",
-        "full_recharge_downtime_percent",
-        "full_reload_downtime_percent",
-    ):
-        if derived.get(key) is not None:
-            downtime = _number(derived.get(key), key)
-            break
-
-    if downtime is None:
-        pressure = "unknown"
-        pressure_label = "no determinada"
-    elif downtime < 15.0:
-        pressure = "low"
-        pressure_label = "baja"
-    elif downtime < 30.0:
-        pressure = "moderate"
-        pressure_label = "moderada"
-    elif downtime < 45.0:
-        pressure = "high"
-        pressure_label = "alta"
-    else:
-        pressure = "very_high"
-        pressure_label = "muy alta"
-
-    evidence = [
-        f"El cargador sostiene aproximadamente {magazine_duration:.2f} s de uso continuo."
-    ]
-    if downtime is not None:
-        evidence.append(
-            f"La recuperación completa ocupa cerca de {downtime:.1f} % del ciclo estimado."
-        )
-
-    return {
-        "reload_type": reload_type,
-        "magazine_duration_seconds": _round(magazine_duration),
-        "fire_window": window,
-        "fire_window_label": window_label,
-        "downtime_percent": _round(downtime) if downtime is not None else None,
-        "reload_pressure": pressure,
-        "reload_pressure_label": pressure_label,
-        "evidence": evidence,
-    }
-
-
-def _select_tendency(
-    critical: Mapping[str, Any],
-    status: Mapping[str, Any],
-) -> tuple[str, str]:
-    critical_score = _number(critical.get("score"), "critical.score")
-    status_score = _number(status.get("score"), "status.score")
-
-    if critical_score >= 0.62 and status_score >= 0.62:
-        return (
-            "hybrid",
-            "Perfil híbrido: crítico y estado muestran soporte estadístico suficiente.",
-        )
-
-    if critical_score >= 0.50 and critical_score - status_score >= 0.10:
-        return (
-            "critical",
-            "Tendencia crítica: la combinación de probabilidad y multiplicador supera al perfil de estado.",
-        )
-
-    if status_score >= 0.50 and status_score - critical_score >= 0.10:
-        return (
-            "status",
-            "Tendencia de estado: la probabilidad y la frecuencia de aplicación superan al perfil crítico.",
-        )
-
-    if critical_score < 0.40 and status_score < 0.40:
-        return (
-            "no_clear_specialization",
-            "Sin especialización clara en crítico o estado con los datos disponibles.",
-        )
-
-    return (
-        "balanced",
-        "Perfil equilibrado sin una ventaja suficientemente amplia para declarar una tendencia única.",
-    )
-
-
-def _confidence_profile(
-    weapon_data: Mapping[str, Any],
+def _run_validated_stage(
     *,
-    category: str,
-    classification: Mapping[str, Any] | None,
-    melee_stats: Mapping[str, Any] | None,
+    stage_name: str,
+    prompt: str,
+    max_tokens: int,
+    generator: StageGenerator,
+    parser: Callable[[str], Any],
+) -> tuple[Any, str, bool]:
+    """Run one stage and retry once using the same clean stage context."""
+
+    raw_response = generator(stage_name, prompt, max_tokens)
+
+    try:
+        return parser(raw_response), raw_response, False
+    except StageFormatError as first_error:
+        repair_prompt = (
+            f"{prompt}\n\n"
+            "FORMAT_REPAIR:\n"
+            f"The previous response failed validation: {first_error}\n"
+            "Return a new answer from scratch. Output only the exact JSON "
+            "object required by the stage system instructions."
+        )
+        repaired = generator(stage_name, repair_prompt, max_tokens)
+
+        try:
+            return parser(repaired), repaired, True
+        except StageFormatError as second_error:
+            raise StageFormatError(
+                f"Stage {stage_name} failed after one retry: {second_error}"
+            ) from second_error
+
+
+def analyze_parsed_weapon(
+    parsed_weapon: Mapping[str, Any],
+    generator: StageGenerator,
+    *,
+    include_debug: bool = False,
 ) -> dict[str, Any]:
-    context = weapon_data.get("context") or {}
-    if not isinstance(context, Mapping):
-        context = {}
+    """Run behavior, job, improvement, and comfort with clean contexts."""
 
-    score = 0.78
-    limits: list[str] = [
-        "No se conocen pasivas, evoluciones, disparos alternativos ni interacciones externas no declaradas."
-    ]
-    missing_context: list[str] = [
-        "economía total de munición",
-        "precisión y retroceso",
-        "caída de daño y comportamiento contra objetivos reales",
-    ]
+    if not isinstance(parsed_weapon, Mapping):
+        raise TypeError("parsed_weapon must be a Mapping.")
 
-    if category in {"primary", "secondary"} and classification is not None:
-        firing_mode = classification.get("firing_mode")
-        delivery = classification.get("damage_delivery")
-        reload_type = classification.get("reload_type")
+    warnings: list[str] = []
+    debug: dict[str, Any] = {"prompts": {}, "raw_responses": {}}
 
-        if firing_mode in {"burst", "charge", "continuous"}:
-            score -= 0.10
-            limits.append(
-                "El modo de disparo requiere aproximaciones porque no se modelan todas sus pausas o animaciones."
-            )
-
-        if delivery == "projectile":
-            score -= 0.05
-            missing_context.append("facilidad real para acertar proyectiles")
-
-        if reload_type in {"battery", "shell_by_shell"}:
-            score -= 0.05
-            limits.append(
-                "La continuidad se calcula con un ciclo completo y no representa todos los patrones de recarga parcial."
-            )
-
-    if category == "melee":
-        score -= 0.22
-        limits.append(
-            "La velocidad de ataque no equivale a ataques por segundo sin postura, animaciones e impactos por movimiento."
-        )
-        missing_context.extend([
-            "postura",
-            "multiplicadores de combo y golpes forzados",
-            "geometría real de ataques ligeros y pesados",
-        ])
-
-        if melee_stats and not melee_stats.get("melee_family"):
-            score -= 0.05
-            missing_context.append("familia del arma melee")
-
-    if context.get("has_special_mechanics"):
-        score -= 0.12
-        limits.append(
-            "El arma declara mecánicas especiales que no están convertidas en reglas estructuradas."
-        )
-
-    score = _clamp(score)
-    if score >= 0.80:
-        level = "high"
-        label = "alta"
-    elif score >= 0.60:
-        level = "medium"
-        label = "media"
-    else:
-        level = "low"
-        label = "baja"
-
-    return {
-        "score": _round(score),
-        "level": level,
-        "label": label,
-        "scope": "solo estadísticas base y relaciones calculables",
-        "limits": limits,
-        "missing_context": list(dict.fromkeys(missing_context)),
-    }
-
-
-def interpret_weapon_data(weapon_data: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(weapon_data, Mapping):
-        raise TypeError("weapon_data debe ser un diccionario o Mapping.")
-
-    if weapon_data.get("schema_version") != SUPPORTED_WEAPON_SCHEMA:
-        raise WeaponInterpretationError(
-            "El intérprete requiere datos del parser con schema_version 3."
-        )
-
-    category = str(weapon_data.get("weapon_category"))
-    if category not in {"primary", "secondary", "melee"}:
-        raise WeaponInterpretationError("La categoría del arma no es válida.")
-
-    damage = _as_mapping(weapon_data.get("damage"), "damage")
-    core_stats = _as_mapping(weapon_data.get("core_stats"), "core_stats")
-    derived = _as_mapping(weapon_data.get("derived"), "derived")
-
-    classification: Mapping[str, Any] | None = None
-    ranged_stats: Mapping[str, Any] | None = None
-    melee_stats: Mapping[str, Any] | None = None
-
-    if category in {"primary", "secondary"}:
-        classification = _as_mapping(
-            weapon_data.get("ranged_classification"),
-            "ranged_classification",
-        )
-        ranged_stats = _as_mapping(
-            weapon_data.get("ranged_stats"),
-            "ranged_stats",
-        )
-    else:
-        melee_stats = _as_mapping(
-            weapon_data.get("melee_stats"),
-            "melee_stats",
-        )
-
-    damage_profile = _damage_profile(damage)
-    critical_profile = _critical_profile(
-        core_stats,
-        derived,
-        category=category,
+    behavior_prompt = build_behavior_prompt(parsed_weapon)
+    behavior, behavior_raw, retried = _run_validated_stage(
+        stage_name="behavior",
+        prompt=behavior_prompt,
+        max_tokens=BEHAVIOR_MAX_TOKENS,
+        generator=generator,
+        parser=parse_behavior_response,
     )
-    status_profile = _status_profile(
-        core_stats,
-        derived,
-        category=category,
+    if retried:
+        warnings.append("Behavior stage required one retry.")
+
+    job_prompt = build_job_prompt(parsed_weapon, behavior)
+    job, job_raw, retried = _run_validated_stage(
+        stage_name="job",
+        prompt=job_prompt,
+        max_tokens=JOB_MAX_TOKENS,
+        generator=generator,
+        parser=parse_job_response,
     )
-    tendency_code, tendency_statement = _select_tendency(
-        critical_profile,
-        status_profile,
+    if retried:
+        warnings.append("Job stage required one retry.")
+
+    allowed_parameters = available_improvement_parameters(parsed_weapon)
+    improvement_prompt = build_improvement_prompt(
+        parsed_weapon,
+        behavior,
+        job,
     )
-
-    strengths: list[dict[str, Any]] = []
-    limitations: list[dict[str, Any]] = []
-    reinforce: list[str] = []
-    correct: list[str] = []
-    avoid_forcing: list[str] = []
-    recommended_use: list[str] = []
-    poor_fit: list[str] = []
-
-    critical_score = _number(critical_profile["score"], "critical.score")
-    status_score = _number(status_profile["score"], "status.score")
-
-    if critical_score >= 0.62:
-        strengths.append(_finding(
-            "critical_support",
-            "El perfil crítico es una fortaleza estadística.",
-            critical_profile["evidence"][:2],
-            importance="high",
-        ))
-        reinforce.append(
-            "Reforzar la ruta crítica porque probabilidad y multiplicador ya trabajan juntos."
-        )
-        recommended_use.append(
-            "Uso que aproveche impactos repetidos o confiables para convertir con frecuencia el buen multiplicador crítico."
-        )
-    elif critical_score < 0.40:
-        limitations.append(_finding(
-            "weak_critical_support",
-            "El perfil crítico tiene soporte limitado.",
-            critical_profile["evidence"][:2],
-        ))
-        avoid_forcing.append(
-            "No convertir el crítico en la única identidad del arma con estos valores base."
-        )
-        poor_fit.append(
-            "Estilos que dependan casi por completo de críticos frecuentes y potentes."
-        )
-
-    if status_score >= 0.62:
-        strengths.append(_finding(
-            "status_support",
-            "El perfil de estado es una fortaleza estadística.",
-            status_profile["evidence"],
-            importance="high",
-        ))
-        reinforce.append(
-            "Reforzar la aplicación de estado porque la probabilidad y su frecuencia efectiva ya son favorables."
-        )
-        recommended_use.append(
-            "Uso basado en impactos repetidos y aplicación constante de efectos de estado."
-        )
-    elif status_score < 0.40:
-        status_throughput = status_profile.get("expected_procs_per_second")
-        if status_throughput is not None and float(status_throughput) >= 1.0:
-            status_statement = (
-                "El estado por impacto es limitado, aunque la frecuencia de impactos permite aplicaciones ocasionales."
-            )
-        else:
-            status_statement = "El perfil de estado tiene soporte limitado."
-
-        limitations.append(_finding(
-            "weak_status_support",
-            status_statement,
-            status_profile["evidence"],
-        ))
-        avoid_forcing.append(
-            "No depender principalmente de estado si la frecuencia efectiva no compensa la probabilidad base."
-        )
-        poor_fit.append(
-            "Estilos cuyo rendimiento dependa principalmente de aplicar estados con cada disparo o impacto."
-        )
-
-    impact_frequency = None
-    continuity = None
-
-    if category in {"primary", "secondary"}:
-        assert classification is not None
-        assert ranged_stats is not None
-        impact_frequency = _impact_frequency_profile(derived)
-        continuity = _continuity_profile(classification, derived)
-
-        if impact_frequency and impact_frequency["rating"] in {"high", "very_high"}:
-            strengths.append(_finding(
-                "high_impact_frequency",
-                "La frecuencia nominal de impactos es alta.",
-                [impact_frequency["evidence"]],
-            ))
-
-        fire_window = continuity["fire_window"]
-        reload_pressure = continuity["reload_pressure"]
-
-        if fire_window in {"long", "very_long"} and reload_pressure in {
-            "low",
-            "moderate",
-        }:
-            strengths.append(_finding(
-                "good_continuity",
-                "La relación entre cargador, cadencia y recarga favorece la continuidad.",
-                continuity["evidence"],
-                importance="high",
-            ))
-            recommended_use.append("Fuego sostenido y ventanas largas de ataque.")
-
-        if fire_window in {"very_short", "short"}:
-            limitations.append(_finding(
-                "short_fire_window",
-                "El cargador se agota rápidamente respecto a la cadencia.",
-                continuity["evidence"],
-                importance="high",
-            ))
-            correct.append(
-                "Corregir la duración útil del cargador o moderar el consumo de munición."
-            )
-            poor_fit.append(
-                "Fuego continuo prolongado sin pausas, porque la ventana antes de recargar es corta."
-            )
-
-        if reload_pressure in {"high", "very_high"}:
-            limitations.append(_finding(
-                "high_reload_pressure",
-                "La recuperación del cargador ocupa una parte grande del ciclo.",
-                continuity["evidence"],
-                importance="high",
-            ))
-            correct.append(
-                "Reducir la presión de recarga para evitar interrupciones frecuentes."
-            )
-
-        firing_mode = classification.get("firing_mode")
-        if firing_mode == "charge":
-            recommended_use.append("Disparos deliberados que acepten el tiempo de carga.")
-            poor_fit.append("Respuesta inmediata o cadencia reactiva constante.")
-        elif firing_mode == "burst":
-            recommended_use.append("Ráfagas controladas y ventanas cortas de exposición.")
-        elif firing_mode == "semi_automatic":
-            recommended_use.append("Disparos controlados en lugar de mantener fuego automático.")
-        elif firing_mode == "continuous":
-            recommended_use.append("Seguimiento continuo del objetivo durante la aplicación del haz.")
-
-        if classification.get("damage_delivery") == "projectile":
-            limitations.append(_finding(
-                "projectile_handling_unknown",
-                "El desempeño práctico depende de acertar proyectiles con tiempo de viaje.",
-                ["La velocidad de proyectil no se compara contra una familia de armas equivalente."],
-            ))
-
-    else:
-        assert melee_stats is not None
-        if melee_stats.get("heavy_attack_damage") is not None:
-            limitations.append(_finding(
-                "heavy_attack_context_incomplete",
-                "Los datos pesados permiten comparar daño y preparación, pero no confirmar una especialización pesada.",
-                [
-                    "Faltan postura, golpes forzados, alcance efectivo, geometría y mecánicas especiales del ataque pesado."
-                ],
-            ))
-
-        recommended_use.append(
-            "Ataques ligeros o generales acordes con el perfil crítico/estado observado, sin asumir la velocidad real de la postura."
-        )
-        poor_fit.append(
-            "Declarar el arma adecuada o inadecuada para ataques pesados únicamente por daño y preparación."
-        )
-
-    if tendency_code == "hybrid":
-        reinforce.append(
-            "Mantener ambas rutas; ninguna debe presentarse como secundaria débil."
-        )
-    elif tendency_code == "critical" and status_score < 0.50:
-        avoid_forcing.append(
-            "No describir el arma como híbrida mientras el perfil de estado permanezca claramente por debajo del crítico."
-        )
-    elif tendency_code == "status" and critical_score < 0.50:
-        avoid_forcing.append(
-            "No describir el arma como híbrida mientras el perfil crítico permanezca claramente por debajo del estado."
-        )
-    elif tendency_code == "no_clear_specialization":
-        reinforce.append(
-            "Priorizar rendimiento base y manejo antes de forzar una identidad crítica o de estado."
-        )
-
-    if not correct:
-        correct.append(
-            "No aparece una corrección operativa dominante dentro de las estadísticas disponibles."
-        )
-
-    confidence = _confidence_profile(
-        weapon_data,
-        category=category,
-        classification=classification,
-        melee_stats=melee_stats,
-    )
-
-    forbidden_conclusions = [
-        "DPS real exacto",
-        "build completa",
-        "mods, Arcanos, Rivens, polaridades o Formas concretas",
-        "mecánicas o pasivas no incluidas en la entrada",
-    ]
-
-    if category == "melee":
-        forbidden_conclusions.extend([
-            "ataques reales por segundo",
-            "rendimiento exacto de postura",
-            "idoneidad definitiva para ataques pesados",
-        ])
-
-    context = weapon_data.get("context") or {}
-    if isinstance(context, Mapping) and context.get("has_special_mechanics"):
-        forbidden_conclusions.append(
-            "ignorar las mecánicas especiales declaradas"
-        )
-
-    return {
-        "interpretation_version": INTERPRETATION_VERSION,
-        "source_schema_version": weapon_data.get("schema_version"),
-        "weapon_category": category,
-        "data_source": weapon_data.get("data_source"),
-        "tendency": {
-            "code": tendency_code,
-            "statement": tendency_statement,
-            "evidence": [
-                f"Perfil crítico: {critical_profile['rating_label']} ({critical_score:.2f}).",
-                f"Perfil de estado: {status_profile['rating_label']} ({status_score:.2f}).",
-            ],
-        },
-        "profiles": {
-            "critical": critical_profile,
-            "status": status_profile,
-            "damage": damage_profile,
-            "impact_frequency": impact_frequency,
-            "continuity": continuity,
-        },
-        "strengths": strengths,
-        "limitations": limitations,
-        "priorities": {
-            "reinforce": list(dict.fromkeys(reinforce)),
-            "correct": list(dict.fromkeys(correct)),
-            "avoid_forcing": list(dict.fromkeys(avoid_forcing)),
-        },
-        "use_cases": {
-            "recommended": list(dict.fromkeys(recommended_use)),
-            "poor_fit": list(dict.fromkeys(poor_fit)),
-        },
-        "confidence": confidence,
-        "forbidden_conclusions": list(dict.fromkeys(forbidden_conclusions)),
-        "calculation_assumptions": list(
-            weapon_data.get("calculation_assumptions") or []
+    improvements, improvements_raw, retried = _run_validated_stage(
+        stage_name="improvements",
+        prompt=improvement_prompt,
+        max_tokens=IMPROVEMENT_MAX_TOKENS,
+        generator=generator,
+        parser=lambda value: parse_improvement_response(
+            value,
+            allowed_parameters,
         ),
-        "special_context": dict(context) if isinstance(context, Mapping) else {},
+    )
+    if retried:
+        warnings.append("Improvement stage required one retry.")
+
+    comfort_prompt = build_comfort_prompt(parsed_weapon)
+    comfort, comfort_raw, retried = _run_validated_stage(
+        stage_name="comfort",
+        prompt=comfort_prompt,
+        max_tokens=COMFORT_MAX_TOKENS,
+        generator=generator,
+        parser=parse_comfort_response,
+    )
+    if retried:
+        warnings.append("Comfort stage required one retry.")
+
+    state: dict[str, Any] = {
+        "analysis_version": ANALYSIS_VERSION,
+        "weapon_category": parsed_weapon.get("weapon_category"),
+        "behavior": behavior,
+        "job": job,
+        "improvements": improvements,
+        "comfort": comfort,
+        "warnings": warnings,
     }
 
+    if include_debug:
+        debug["prompts"] = {
+            "behavior": behavior_prompt,
+            "job": job_prompt,
+            "improvements": improvement_prompt,
+            "comfort": comfort_prompt,
+        }
+        debug["raw_responses"] = {
+            "behavior": behavior_raw,
+            "job": job_raw,
+            "improvements": improvements_raw,
+            "comfort": comfort_raw,
+        }
+        state["debug"] = debug
 
-interpret = interpret_weapon_data
+    return state
+
+
+def format_analysis(analysis: Mapping[str, Any]) -> str:
+    """Format the validated state without asking the model to rewrite it."""
+
+    behavior = _mapping(analysis.get("behavior"), "behavior")
+    job = _mapping(analysis.get("job"), "job")
+    comfort = _mapping(analysis.get("comfort"), "comfort")
+    improvements = analysis.get("improvements") or []
+
+    lines = [
+        "¿Qué hace el arma?",
+        str(behavior.get("summary") or "No determinado."),
+    ]
+
+    traits = behavior.get("traits") or []
+    if traits:
+        lines.append("Rasgos:")
+        lines.extend(f"- {item}" for item in traits)
+
+    lines.extend(
+        [
+            "",
+            "Trabajo sugerido",
+            str(job.get("name") or "Uso general"),
+            str(job.get("reason") or ""),
+            "",
+            "Aspectos que conviene mejorar",
+        ]
+    )
+
+    if isinstance(improvements, list) and improvements:
+        for item in improvements:
+            if not isinstance(item, Mapping):
+                continue
+            lines.append(
+                f"- {item.get('parameter')}: {item.get('reason')} "
+                f"({item.get('direction')})"
+            )
+    else:
+        lines.append("- Ninguna mejora determinada.")
+
+    lines.extend(
+        [
+            "",
+            "Comodidad",
+            str(comfort.get("rating") or "No determinada"),
+            str(comfort.get("description") or ""),
+        ]
+    )
+
+    frictions = comfort.get("frictions") or []
+    if frictions:
+        lines.append("Fricciones:")
+        lines.extend(f"- {item}" for item in frictions)
+
+    return "\n".join(lines).strip()

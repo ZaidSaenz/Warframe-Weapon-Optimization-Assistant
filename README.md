@@ -3,7 +3,7 @@
 
 This project is a local AI-powered assistant designed to help players optimize weapons in **Warframe**.
 
-The application uses a **Qwen 3B** language model running locally and a carefully engineered system prompt that defines the AI's role as a weapon optimization expert. Instead of generating random advice, the model analyzes structured weapon statistics provided by the user and returns practical recommendations based on established Warframe build principles.
+The application uses a **SmolLM2-1.7B-Instruct-Q4_K_M.** language model running locally and a carefully engineered system prompt that defines the AI's role as a weapon optimization expert. Instead of generating random advice, the model analyzes structured weapon statistics provided by the user and returns practical recommendations based on established Warframe build principles.
 
 The assistant focuses on:
 
