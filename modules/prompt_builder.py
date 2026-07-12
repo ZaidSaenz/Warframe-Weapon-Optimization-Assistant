@@ -1,27 +1,13 @@
+
 # modules/prompt_builder.py
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
+from modules.weapon_interpreter import interpret_weapon_data
 
-DAMAGE_LABELS = {
-    "impact": "Impacto",
-    "puncture": "Perforación",
-    "slash": "Corte",
-    "heat": "Calor",
-    "cold": "Frío",
-    "electricity": "Electricidad",
-    "toxin": "Toxina",
-    "blast": "Explosión",
-    "corrosive": "Corrosivo",
-    "gas": "Gas",
-    "magnetic": "Magnético",
-    "radiation": "Radiación",
-    "viral": "Viral",
-    "void": "Vacío",
-}
 
 CATEGORY_LABELS = {
     "primary": "Primaria",
@@ -29,341 +15,245 @@ CATEGORY_LABELS = {
     "melee": "Melee",
 }
 
-FIRING_MODE_LABELS = {
-    "automatic": "Automático",
-    "semi_automatic": "Semiautomático",
-    "burst": "Ráfaga",
-    "charge": "Carga",
-    "continuous": "Continuo",
-}
-
-DELIVERY_LABELS = {
-    "hitscan": "Hitscan",
-    "projectile": "Proyectil",
-    "beam": "Haz",
-}
+EXPECTED_HEADINGS = (
+    "Tendencia principal",
+    "Fortalezas",
+    "Limitaciones",
+    "Prioridades",
+    "Uso recomendado",
+    "Uso poco recomendado",
+)
 
 
 class PromptBuilderError(ValueError):
     pass
 
 
-def _format_number(value: Any, decimals: int = 4) -> str:
+def _format_number(value: Any, decimals: int = 2) -> str:
     if value is None:
         return ""
 
     number = float(value)
-
     if number.is_integer():
         return str(int(number))
 
     return f"{number:.{decimals}f}".rstrip("0").rstrip(".")
 
 
-def _append_stat(
-    lines: list[str],
-    label: str,
-    value: Any,
-    suffix: str = "",
-) -> None:
-    if value is None:
-        return
-
-    formatted = _format_number(value)
-    lines.append(f"- {label}: {formatted}{suffix}")
+def _require_mapping(value: Any, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise PromptBuilderError(f"Falta la sección interpretada: {name}.")
+    return value
 
 
-def _build_damage_section(damage: Mapping[str, Any]) -> list[str]:
-    components = damage.get("components", {})
-    distribution = damage.get("distribution_percent", {})
+def _as_text_list(value: Any) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
-    if not isinstance(components, Mapping) or not components:
-        raise PromptBuilderError("No hay componentes de daño base válidos.")
 
-    lines = ["DAÑO BASE"]
-    _append_stat(lines, "Daño base total", damage.get("base_total"))
+def _finding_lines(value: Any) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
 
-    for damage_type, value in components.items():
-        label = DAMAGE_LABELS.get(damage_type, str(damage_type))
-        percent = distribution.get(damage_type)
+    lines: list[str] = []
+    for finding in value:
+        if not isinstance(finding, Mapping):
+            continue
 
-        if percent is None:
-            lines.append(f"- {label}: {_format_number(value)}")
+        statement = str(finding.get("statement") or "").strip()
+        evidence = _as_text_list(finding.get("evidence"))
+
+        if not statement:
+            continue
+
+        if evidence:
+            lines.append(f"- {statement} Evidencia: {' '.join(evidence)}")
         else:
-            lines.append(
-                f"- {label}: {_format_number(value)} "
-                f"({_format_number(percent)} %)"
-            )
-
-    dominant_type = damage.get("dominant_type")
-
-    if dominant_type:
-        dominant_label = DAMAGE_LABELS.get(
-            dominant_type,
-            str(dominant_type),
-        )
-        lines.append(f"- Tipo dominante: {dominant_label}")
-
-    _append_stat(
-        lines,
-        "Proporción de daño físico",
-        damage.get("physical_percent"),
-        " %",
-    )
-    _append_stat(
-        lines,
-        "Proporción de daño elemental",
-        damage.get("elemental_percent"),
-        " %",
-    )
+            lines.append(f"- {statement}")
 
     return lines
 
 
-def _build_core_section(core_stats: Mapping[str, Any]) -> list[str]:
-    lines = ["ESTADÍSTICAS CENTRALES"]
-    _append_stat(
-        lines,
-        "Probabilidad crítica",
-        core_stats.get("critical_chance_percent"),
-        " %",
-    )
-    _append_stat(
-        lines,
-        "Multiplicador crítico",
-        core_stats.get("critical_multiplier"),
-        "x",
-    )
-    _append_stat(
-        lines,
-        "Probabilidad de estado",
-        core_stats.get("status_chance_percent"),
-        " %",
-    )
-    return lines
+def _list_lines(value: Any) -> list[str]:
+    return [f"- {item}" for item in _as_text_list(value)]
 
 
-def _build_ranged_section(weapon_data: Mapping[str, Any]) -> list[str]:
-    classification = weapon_data.get("ranged_classification") or {}
-    ranged_stats = weapon_data.get("ranged_stats") or {}
-    conditional_stats = weapon_data.get("conditional_stats") or {}
-    derived = weapon_data.get("derived") or {}
+def _normalize_input(data: Mapping[str, Any]) -> Mapping[str, Any]:
+    if data.get("interpretation_version") == 1:
+        return data
 
-    lines = ["PERFIL DE ARMA A DISTANCIA"]
+    if data.get("schema_version") == 3:
+        return interpret_weapon_data(data)
 
-    firing_mode = classification.get("firing_mode")
-    damage_delivery = classification.get("damage_delivery")
-
-    lines.append(
-        "- Modo de disparo: "
-        + FIRING_MODE_LABELS.get(firing_mode, str(firing_mode))
-    )
-    lines.append(
-        "- Entrega del daño: "
-        + DELIVERY_LABELS.get(damage_delivery, str(damage_delivery))
-    )
-    lines.append(
-        "- Múltiples perdigones: "
-        + ("Sí" if classification.get("has_multiple_pellets") else "No")
-    )
-    lines.append(
-        "- Explosiva: "
-        + ("Sí" if classification.get("is_explosive") else "No")
+    raise PromptBuilderError(
+        "El constructor requiere una interpretación versión 1 o datos parseados con schema_version 3."
     )
 
-    _append_stat(lines, "Cadencia de fuego", ranged_stats.get("fire_rate"))
-    _append_stat(lines, "Multidisparo base", ranged_stats.get("multishot"))
-    _append_stat(lines, "Tamaño del cargador", ranged_stats.get("magazine_size"))
-    _append_stat(lines, "Tiempo de recarga", ranged_stats.get("reload_time"), " s")
 
-    _append_stat(
-        lines,
-        "Disparos por ráfaga",
-        conditional_stats.get("shots_per_burst"),
-    )
-    _append_stat(
-        lines,
-        "Tiempo de carga",
-        conditional_stats.get("charge_time"),
-        " s",
-    )
-    _append_stat(
-        lines,
-        "Cantidad de perdigones",
-        conditional_stats.get("pellet_count"),
-    )
-    _append_stat(
-        lines,
-        "Velocidad del proyectil",
-        conditional_stats.get("projectile_speed"),
-    )
-    _append_stat(
-        lines,
-        "Radio de explosión",
-        conditional_stats.get("explosion_radius"),
-    )
-    _append_stat(
-        lines,
-        "Alcance del haz",
-        conditional_stats.get("beam_range"),
-    )
+def build_weapon_prompt(data: Mapping[str, Any]) -> str:
+    if not isinstance(data, Mapping):
+        raise TypeError("data debe ser un diccionario o Mapping.")
 
-    if derived:
-        lines.append("ESTIMACIONES DERIVADAS")
-        _append_stat(
-            lines,
-            "Factor crítico promedio",
-            derived.get("critical_factor"),
-            "x",
-        )
-        _append_stat(
-            lines,
-            "Proyectiles por segundo",
-            derived.get("projectiles_per_second"),
-        )
-        _append_stat(
-            lines,
-            "Eventos críticos por segundo estimados",
-            derived.get("critical_events_per_second_estimate"),
-        )
-        _append_stat(
-            lines,
-            "Eventos de estado por segundo estimados",
-            derived.get("status_events_per_second_estimate"),
-        )
-        _append_stat(
-            lines,
-            "Duración estimada del cargador",
-            derived.get("magazine_duration_seconds"),
-            " s",
-        )
-        _append_stat(
-            lines,
-            "Tiempo del ciclo ocupado en recarga",
-            derived.get("reload_downtime_percent"),
-            " %",
-        )
-
-    return lines
-
-
-def _build_melee_section(weapon_data: Mapping[str, Any]) -> list[str]:
-    melee_stats = weapon_data.get("melee_stats") or {}
-    derived = weapon_data.get("derived") or {}
-
-    lines = ["PERFIL MELEE"]
-    _append_stat(
-        lines,
-        "Velocidad de ataque",
-        melee_stats.get("attack_speed"),
-    )
-    _append_stat(lines, "Alcance", melee_stats.get("range"))
-    _append_stat(
-        lines,
-        "Daño de ataque pesado",
-        melee_stats.get("heavy_attack_damage"),
-    )
-    _append_stat(
-        lines,
-        "Preparación de ataque pesado",
-        melee_stats.get("heavy_attack_wind_up"),
-        " s",
-    )
-
-    if derived:
-        lines.append("ESTIMACIONES DERIVADAS")
-        _append_stat(
-            lines,
-            "Factor crítico promedio",
-            derived.get("critical_factor"),
-            "x",
-        )
-        _append_stat(
-            lines,
-            "Eventos críticos por segundo estimados",
-            derived.get("critical_events_per_second_estimate"),
-        )
-        _append_stat(
-            lines,
-            "Eventos de estado por segundo estimados",
-            derived.get("status_events_per_second_estimate"),
-        )
-        _append_stat(
-            lines,
-            "Relación entre ataque pesado y daño base",
-            derived.get("heavy_to_base_damage_ratio"),
-            "x",
-        )
-        _append_stat(
-            lines,
-            "Daño pesado por segundo de preparación",
-            derived.get("heavy_damage_per_wind_up_second"),
-        )
-
-    return lines
-
-
-def build_weapon_prompt(weapon_data: Mapping[str, Any]) -> str:
-    if not isinstance(weapon_data, Mapping):
-        raise TypeError("weapon_data debe ser un diccionario o Mapping.")
-
-    if weapon_data.get("schema_version") != 2:
-        raise PromptBuilderError(
-            "El constructor requiere datos validados con schema_version 2."
-        )
-
-    category = weapon_data.get("weapon_category")
+    interpretation = _normalize_input(data)
+    category = str(interpretation.get("weapon_category"))
 
     if category not in CATEGORY_LABELS:
-        raise PromptBuilderError("La categoría del arma no es válida.")
+        raise PromptBuilderError("La categoría interpretada no es válida.")
 
-    damage = weapon_data.get("damage")
-    core_stats = weapon_data.get("core_stats")
+    tendency = _require_mapping(
+        interpretation.get("tendency"),
+        "tendency",
+    )
+    profiles = _require_mapping(
+        interpretation.get("profiles"),
+        "profiles",
+    )
+    priorities = _require_mapping(
+        interpretation.get("priorities"),
+        "priorities",
+    )
+    use_cases = _require_mapping(
+        interpretation.get("use_cases"),
+        "use_cases",
+    )
+    confidence = _require_mapping(
+        interpretation.get("confidence"),
+        "confidence",
+    )
+    special_context = interpretation.get("special_context") or {}
+    if not isinstance(special_context, Mapping):
+        special_context = {}
 
-    if not isinstance(damage, Mapping):
-        raise PromptBuilderError("Falta la sección de daño validado.")
-
-    if not isinstance(core_stats, Mapping):
-        raise PromptBuilderError("Faltan las estadísticas centrales validadas.")
+    critical = _require_mapping(profiles.get("critical"), "profiles.critical")
+    status = _require_mapping(profiles.get("status"), "profiles.status")
+    damage = _require_mapping(profiles.get("damage"), "profiles.damage")
+    impact_frequency = profiles.get("impact_frequency")
+    continuity = profiles.get("continuity")
 
     lines = [
-        "Analiza exclusivamente las siguientes estadísticas base de un arma de Warframe.",
-        "No uses el nombre del arma ni información externa para completar datos ausentes.",
-        "Evalúa las relaciones internas entre sus estadísticas, no una build existente.",
+        "Los siguientes datos ya fueron validados, calculados e interpretados por reglas deterministas.",
+        "Redacta el análisis sin recalcular, cambiar clasificaciones ni agregar conocimiento externo.",
         "",
         f"CATEGORÍA: {CATEGORY_LABELS[category]}",
+        (
+            f"CONFIANZA DEL ANÁLISIS: {confidence.get('label', 'no determinada')} "
+            f"({confidence.get('scope', 'alcance no especificado')})"
+        ),
         "",
-        *_build_damage_section(damage),
+        "TENDENCIA CALCULADA",
+        f"- {str(tendency.get('statement') or '').strip()}",
+        *_list_lines(tendency.get("evidence")),
         "",
-        *_build_core_section(core_stats),
-        "",
+        "PERFILES CALCULADOS",
+        (
+            "- Crítico: "
+            f"{critical.get('rating_label')} | "
+            f"{_format_number(critical.get('chance_percent'))} % | "
+            f"{_format_number(critical.get('multiplier'))}x | "
+            f"factor promedio {_format_number(critical.get('expected_damage_factor'))}x."
+        ),
+        (
+            "- Estado: "
+            f"{status.get('rating_label')} | "
+            f"{_format_number(status.get('chance_percent'))} % por impacto"
+            + (
+                f" | {_format_number(status.get('expected_procs_per_second'))} procs/s estimados."
+                if status.get("expected_procs_per_second") is not None
+                else "."
+            )
+        ),
+        (
+            "- Daño base: "
+            f"tipo dominante {damage.get('dominant_label')} "
+            f"({_format_number(damage.get('dominant_percent'))} %); "
+            f"distribución {damage.get('concentration_label')}."
+        ),
     ]
 
-    if category in {"primary", "secondary"}:
-        lines.extend(_build_ranged_section(weapon_data))
-    else:
-        lines.extend(_build_melee_section(weapon_data))
+    if isinstance(impact_frequency, Mapping):
+        lines.append(
+            "- Frecuencia de impactos: "
+            f"{impact_frequency.get('rating_label')} "
+            f"({_format_number(impact_frequency.get('instances_per_second'))} instancias/s nominales)."
+        )
+
+    if isinstance(continuity, Mapping):
+        lines.append(
+            "- Continuidad: ventana de fuego "
+            f"{continuity.get('fire_window_label')} "
+            f"({_format_number(continuity.get('magazine_duration_seconds'))} s); "
+            f"presión de recarga {continuity.get('reload_pressure_label')}"
+            + (
+                f" ({_format_number(continuity.get('downtime_percent'))} % del ciclo)."
+                if continuity.get("downtime_percent") is not None
+                else "."
+            )
+        )
+
+    strengths = _finding_lines(interpretation.get("strengths"))
+    limitations = _finding_lines(interpretation.get("limitations"))
 
     lines.extend([
         "",
-        "RESPONDE EN ESTE FORMATO:",
-        "Tendencia principal: explica el patrón estadístico dominante.",
-        "Fortalezas: indica las estadísticas que ya favorecen al arma.",
-        "Limitaciones: señala las estadísticas que restringen su desempeño.",
-        "Prioridades: distingue entre reforzar fortalezas y corregir debilidades.",
-        "Uso recomendado: indica los estilos de uso coherentes con los datos.",
-        "Uso poco recomendado: indica estilos desfavorables y explica por qué.",
+        "FORTALEZAS CONFIRMADAS",
+        *(strengths or ["- No se confirmó una fortaleza dominante con las reglas actuales."]),
         "",
-        "REGLAS DE RESPUESTA:",
-        "- No generes una build completa.",
-        "- No recomiendes mods, Arcanos, Rivens, polaridades ni Formas.",
-        "- No inventes estadísticas, mecánicas o datos ausentes.",
-        "- No trates las estimaciones derivadas como daño real exacto.",
-        "- Si faltan datos opcionales, no saques conclusiones sobre ellos.",
-        "- Sé concreto y evita repetir toda la tabla de estadísticas.",
+        "LIMITACIONES CONFIRMADAS",
+        *(limitations or ["- No se confirmó una limitación dominante con las reglas actuales."]),
+        "",
+        "PRIORIDADES YA DETERMINADAS",
+        "Reforzar:",
+        *(_list_lines(priorities.get("reinforce")) or ["- Sin prioridad de refuerzo dominante."]),
+        "Corregir:",
+        *(_list_lines(priorities.get("correct")) or ["- Sin corrección dominante."]),
+        "Evitar forzar:",
+        *(_list_lines(priorities.get("avoid_forcing")) or ["- Ninguna ruta adicional identificada."]),
+        "",
+        "USOS COMPATIBLES",
+        *(_list_lines(use_cases.get("recommended")) or ["- No determinado."]),
+        "",
+        "USOS POCO COMPATIBLES",
+        *(_list_lines(use_cases.get("poor_fit")) or ["- No determinado."]),
+        "",
+        "LÍMITES OBLIGATORIOS",
+        *(_list_lines(confidence.get("limits")) or ["- Usa solo los datos proporcionados."]),
+        *(_list_lines(interpretation.get("calculation_assumptions"))),
+        "Contexto faltante que no debe suponerse:",
+        *(_list_lines(confidence.get("missing_context")) or ["- Ninguno declarado."]),
+        "Conclusiones prohibidas:",
+        *(_list_lines(interpretation.get("forbidden_conclusions")) or ["- Información no incluida en la entrada."]),
+        "",
+        "FORMATO OBLIGATORIO",
+        "Tendencia principal: una o dos oraciones.",
+        "Fortalezas: máximo tres oraciones.",
+        "Limitaciones: máximo tres oraciones.",
+        "Prioridades: distingue claramente reforzar fortalezas y corregir debilidades.",
+        "Uso recomendado: una o dos oraciones.",
+        "Uso poco recomendado: una o dos oraciones.",
+        "",
+        "No repitas la tabla completa. No uses listas de estadísticas sin interpretación.",
+        "No recomiendes objetos concretos ni una build completa.",
     ])
 
-    return "\n".join(lines).strip()
+
+    special_note = str(
+        special_context.get("special_mechanics_note") or ""
+    ).strip()
+    if special_note:
+        limits_index = lines.index("LÍMITES OBLIGATORIOS")
+        lines[limits_index:limits_index] = [
+            "CONTEXTO ESPECIAL DECLARADO",
+            f"- {special_note}",
+            "- Menciónalo únicamente como contexto declarado; no inventes consecuencias adicionales.",
+            "",
+        ]
+
+    return "\n".join(line for line in lines if line is not None).strip()
+
+
+def expected_headings() -> tuple[str, ...]:
+    return EXPECTED_HEADINGS
 
 
 build_prompt = build_weapon_prompt
