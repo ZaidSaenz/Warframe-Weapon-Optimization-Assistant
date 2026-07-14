@@ -1,0 +1,60 @@
+{
+  "id": "reload_friction",
+  "title": "Reload friction",
+  "related_stats": [
+    "reload_time",
+    "magazine_size",
+    "fire_rate",
+    "ammo_cost_per_damage_tick",
+    "firing_mode",
+    "reload_type"
+  ],
+  "derived_signals": [
+    "estimated_magazine_duration_seconds",
+    "reload_cycle_share",
+    "reload_frequency"
+  ],
+  "principles": [
+    "Reload friction must be evaluated from the complete firing cycle rather than from reload time alone.",
+    "Compare reload time with the approximate active firing window before the magazine is consumed.",
+    "Reloading becomes more disruptive when inactive reload time occupies a large share of repeated attack cycles.",
+    "High fire rate may improve immediate pressure while consuming the magazine sooner and increasing reload frequency.",
+    "A large magazine extends active firing time and reduces reload frequency, but it does not shorten each interruption.",
+    "Reload speed reduces inactive time directly, while magazine size mainly delays when that inactive time occurs.",
+    "A small magazine can create strong reload friction even when listed reload time is only moderate.",
+    "A large magazine may tolerate a longer reload when active firing time is substantially longer than the interruption.",
+    "Do not classify reload time as universally good or bad using a fixed duration threshold.",
+    "Do not assume fire rate is a pure sustained-output improvement when it also increases magazine consumption and reload frequency.",
+    "Conventional magazine, shell-by-shell, staged, battery, and automatic-recharge systems must be evaluated separately.",
+    "Interruptible shell-by-shell reloads may reduce practical friction because partial recovery is possible.",
+    "Battery weapons require separation between recharge delay and recharge duration when those values are supplied.",
+    "Reload improvements primarily improve continuity and usability, but they can materially affect combat performance when downtime occupies a substantial portion of the cycle."
+  ],
+  "interpretation": {
+    "low": [
+      "The active firing window is much longer than the reload interruption.",
+      "Reload downtime represents a small share of the cycle."
+    ],
+    "moderate": [
+      "Reloading is noticeable but does not dominate the cycle.",
+      "Additional fire rate may increase reload frequency noticeably."
+    ],
+    "high": [
+      "Reload downtime occupies a large share of the cycle.",
+      "Repeated reload interruptions are likely to break sustained pressure."
+    ],
+    "special_reload": [
+      "The reload system cannot be evaluated reliably with conventional full-magazine logic alone.",
+      "Battery or shell-by-shell behavior requires its specific supplied fields."
+    ],
+    "undetermined": [
+      "The supplied data is insufficient to compare active firing time with reload downtime."
+    ]
+  },
+  "exceptions": [
+    "Do not apply conventional magazine-duration logic directly to battery weapons.",
+    "Do not treat shell-by-shell total duration as one unavoidable interruption when it can be interrupted.",
+    "Do not infer practical fire rate when charge, burst delay, spool-up, or manual input limits it.",
+    "Do not assume multishot increases ammunition consumption unless explicitly supplied."
+  ]
+}

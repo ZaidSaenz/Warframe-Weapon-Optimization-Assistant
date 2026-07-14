@@ -1,0 +1,38 @@
+{
+  "id": "operational_comfort",
+  "title": "Operational comfort",
+  "related_stats": [
+    "accuracy",
+    "recoil",
+    "projectile_speed",
+    "charge_time",
+    "beam_range",
+    "magazine_size",
+    "reload_time",
+    "attack_speed",
+    "heavy_attack_wind_up"
+  ],
+  "principles": [
+    "Operational comfort must be separated from combat function and damage potential.",
+    "Comfort conclusions must use only supplied handling, timing, reach, and interruption evidence.",
+    "High fire rate alone does not make a weapon demanding.",
+    "Do not mention accuracy, recoil, projectile travel, charge handling, or aiming difficulty when the corresponding fields are absent.",
+    "A long active firing window may offset a noticeable reload interruption.",
+    "Short range, slow projectiles, charge time, recoil, accuracy limitations, or heavy wind-up may affect comfort only when explicitly supplied.",
+    "Use undetermined when the available operational evidence is insufficient."
+  ],
+  "interpretation": {
+    "comfortable": [
+      "The supplied handling and interruption evidence suggests low operational friction."
+    ],
+    "manageable": [
+      "The weapon has noticeable but controlled operational friction."
+    ],
+    "demanding": [
+      "The supplied handling or interruption evidence indicates repeated execution demands."
+    ],
+    "undetermined": [
+      "The supplied data is insufficient to classify operational comfort confidently."
+    ]
+  }
+}

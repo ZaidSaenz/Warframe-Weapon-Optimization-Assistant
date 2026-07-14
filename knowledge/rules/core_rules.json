@@ -1,0 +1,181 @@
+
+{
+  "rules": [
+    {
+      "id": "retrieve_critical_profile",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "critical_relationship",
+          "operator": "in",
+          "value": [
+            "limited",
+            "moderate",
+            "aligned",
+            "mixed"
+          ]
+        }
+      ],
+      "retrieve": [
+        "critical_profile"
+      ]
+    },
+    {
+      "id": "retrieve_status_application",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "status_relationship",
+          "operator": "in",
+          "value": [
+            "limited",
+            "moderate",
+            "aligned",
+            "mixed"
+          ]
+        }
+      ],
+      "retrieve": [
+        "status_application"
+      ]
+    },
+    {
+      "id": "retrieve_reload_friction",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "reload_friction",
+          "operator": "in",
+          "value": [
+            "moderate",
+            "high",
+            "special_reload"
+          ]
+        }
+      ],
+      "retrieve": [
+        "reload_friction"
+      ]
+    },
+    {
+      "id": "retrieve_sustained_behavior",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "damage_behavior",
+          "operator": "equals",
+          "value": "sustained"
+        }
+      ],
+      "retrieve": [
+        "sustained_damage"
+      ]
+    },
+    {
+      "id": "retrieve_beam_behavior",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "damage_delivery",
+          "operator": "equals",
+          "value": "beam"
+        }
+      ],
+      "retrieve": [
+        "beam_behavior"
+      ]
+    },
+    {
+      "id": "retrieve_structured_multi_target",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "has_structured_multi_target_evidence",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "retrieve": [
+        "multi_target_delivery"
+      ]
+    },
+    {
+      "id": "retrieve_special_mechanic_review",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "special_mechanic_present",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "retrieve": [
+        "special_mechanic_review"
+      ]
+    },
+    {
+      "id": "retrieve_ammo_consumption_rate",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "consumption_rate_signal",
+          "operator": "in",
+          "value": [
+            "moderate",
+            "elevated"
+          ]
+        }
+      ],
+      "retrieve": [
+        "ammo_consumption"
+      ]
+    },
+    {
+      "id": "retrieve_ammo_economy",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "ammo_economy_signal",
+          "operator": "in",
+          "value": [
+            "moderate",
+            "elevated",
+            "undetermined"
+          ]
+        }
+      ],
+      "retrieve": [
+        "ammo_consumption"
+      ]
+    },
+    {
+      "id": "retrieve_operational_comfort",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "reload_friction",
+          "operator": "in",
+          "value": [
+            "low",
+            "moderate",
+            "high",
+            "special_reload",
+            "undetermined"
+          ]
+        },
+        {
+          "field": "handling_friction",
+          "operator": "in",
+          "value": [
+            "low",
+            "moderate",
+            "high"
+          ]
+        }
+      ],
+      "retrieve": [
+        "operational_comfort"
+      ]
+    }
+  ]
+}

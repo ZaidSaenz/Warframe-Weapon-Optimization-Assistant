@@ -1,0 +1,40 @@
+{
+  "id": "ammo_consumption",
+  "title": "Ammunition consumption",
+  "related_stats": [
+    "fire_rate",
+    "magazine_size",
+    "ammo_capacity",
+    "ammo_pickup",
+    "ammo_cost_per_damage_tick",
+    "reload_time"
+  ],
+  "principles": [
+    "Ammunition pressure should be evaluated from consumption rate, reserve capacity, pickup, and weapon-specific cost rather than from fire rate alone.",
+    "High fire rate may increase consumption, but the practical result depends on whether each attack or tick consumes ammunition and how much is recovered.",
+    "A large reserve delays depletion but does not prove long-duration efficiency.",
+    "Ammo pickup can offset high consumption when supplied values support that relationship.",
+    "Beam and continuous weapons may use ammunition per tick or through another weapon-specific rule; do not assume one unit per displayed fire-rate event.",
+    "Do not recommend ammunition efficiency as a dominant correction when pickup or cost information is absent unless the mechanic explicitly identifies a resource problem.",
+    "Use the term ammunition or munición, not projectiles, when discussing reserves or consumption."
+  ],
+  "interpretation": {
+    "low": [
+      "The supplied consumption signal does not indicate notable reserve pressure."
+    ],
+    "moderate": [
+      "Consumption may require attention during repeated use but is not clearly dominant."
+    ],
+    "elevated": [
+      "The firing pattern suggests increased consumption, but final efficiency still depends on pickup and cost data."
+    ],
+    "undetermined": [
+      "The supplied fields are insufficient to classify ammunition efficiency."
+    ]
+  },
+  "exceptions": [
+    "Do not infer ammunition starvation from fire rate alone.",
+    "Do not assume multishot consumes additional ammunition.",
+    "Do not infer per-tick beam cost when it is absent."
+  ]
+}

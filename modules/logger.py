@@ -1,40 +1,88 @@
-# modules/logger_cv.py
+# modules/logger.py
 
-#En teroria esto deberia guardar los errores pero tambien seria bueno agregar descripciones de que paso 
+from __future__ import annotations
 
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from datetime import datetime
+from threading import Lock
 
 
-def configurar_logger(nombre_logger="cv_maker"):
-    """
-    Configura un logger para guardar errores y eventos del CV Maker.
-    Crea automáticamente la carpeta logs si no existe.
-    """
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
+DEFAULT_LOGGER_NAME = "warframe_weapon_optimizer"
+MAX_LOG_SIZE_BYTES = 2_000_000
+BACKUP_COUNT = 5
 
-    carpeta_logs = Path("logs")
-    carpeta_logs.mkdir(exist_ok=True)
+_logger_lock = Lock()
 
-    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-    archivo_log = carpeta_logs / f"cv_maker_{fecha_actual}.log"
 
-    logger = logging.getLogger(nombre_logger)
-    logger.setLevel(logging.INFO)
+def configure_logger(
+    name: str = DEFAULT_LOGGER_NAME,
+    *,
+    level: int = logging.INFO,
+    console: bool = False,
+) -> logging.Logger:
+    logger = logging.getLogger(name)
 
-    # Evita duplicar handlers si el logger ya fue configurado
     if logger.handlers:
         return logger
 
-    formato = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(module)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
+    with _logger_lock:
+        if logger.handlers:
+            return logger
 
-    handler_archivo = logging.FileHandler(archivo_log, encoding="utf-8")
-    handler_archivo.setLevel(logging.INFO)
-    handler_archivo.setFormatter(formato)
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        logger.setLevel(level)
+        logger.propagate = False
 
-    logger.addHandler(handler_archivo)
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(name)s | "
+            "%(module)s.%(funcName)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+        file_handler = RotatingFileHandler(
+            LOGS_DIR / "warframe_weapon_optimizer.log",
+            maxBytes=MAX_LOG_SIZE_BYTES,
+            backupCount=BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        if console:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(level)
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
 
     return logger
+
+
+def get_logger(module_name: str | None = None) -> logging.Logger:
+    base_logger = configure_logger()
+
+    if not module_name:
+        return base_logger
+
+    clean_name = module_name.removeprefix("modules.")
+    return base_logger.getChild(clean_name)
+
+
+def log_exception(
+    logger: logging.Logger,
+    message: str,
+    error: BaseException,
+    **context: object,
+) -> None:
+    context_text = " | ".join(
+        f"{key}={value!r}" for key, value in context.items()
+    )
+
+    full_message = message
+    if context_text:
+        full_message = f"{message} | {context_text}"
+
+    logger.exception("%s | error=%s", full_message, error)

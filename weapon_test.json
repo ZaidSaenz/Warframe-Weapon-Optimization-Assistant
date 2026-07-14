@@ -33,5 +33,11 @@
   "beam_range": 18,
   "punch_through": 0,
 
+  "has_chaining": true,
+  "chain_targets": 3,
+  "chain_range": 10,
+  "chain_damage_retention_percent": 50,
+  "has_damage_ramp": true,
+
   "special_mechanic": "The continuous main beam chains to up to 3 additional nearby enemies within 10 meters. Each successive chain deals 50% of the previous beam's damage. The main beam damage ramps up while continuously firing."
 }

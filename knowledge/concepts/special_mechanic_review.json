@@ -1,0 +1,20 @@
+{
+  "id": "special_mechanic_review",
+  "title": "Special mechanic review",
+  "related_stats": [
+    "special_mechanic"
+  ],
+  "principles": [
+    "A supplied special mechanic may refine the weapon's role, but every conclusion must be traceable to the explicit mechanic text.",
+    "Describe the mechanic directly without converting it into an unsupported statistic or improvement parameter.",
+    "Do not recommend changing the special mechanic itself; recommend only allowed statistics that reinforce its demonstrated function or correct supported friction.",
+    "Distinguish damage ramp from charge behavior, chaining from radial damage, and secondary targets from the primary target.",
+    "When a mechanic includes target count, range, decay, duration, or activation conditions, preserve those distinctions.",
+    "If the mechanic is ambiguous, prefer a cautious description and avoid deterministic claims."
+  ],
+  "exceptions": [
+    "Do not infer mechanics from the weapon name.",
+    "Do not assume every special mechanic creates multi-target or area behavior.",
+    "Do not invent hidden scaling, activation conditions, or external synergies."
+  ]
+}

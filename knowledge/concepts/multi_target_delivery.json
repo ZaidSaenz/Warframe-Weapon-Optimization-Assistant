@@ -1,0 +1,28 @@
+{
+  "id": "multi_target_delivery",
+  "title": "Multi-target delivery",
+  "related_stats": [
+    "is_explosive",
+    "explosion_radius",
+    "punch_through",
+    "pellet_count",
+    "chain_targets",
+    "chain_range",
+    "special_mechanic"
+  ],
+  "principles": [
+    "Multi-target capability requires explicit evidence such as explosion, radial reach, Punch Through, chaining, spread, or another supplied mechanic.",
+    "The primary job may be group_clear when the complete attack pattern reliably reaches several enemies rather than only describing a sustained firing rhythm.",
+    "Multi-target capability does not automatically imply area control; area control requires evidence that the weapon influences space, movement, or repeated zones.",
+    "Chaining should be evaluated from the supplied number of additional targets, chain range, and damage decay when available.",
+    "Punch Through can allow one attack path to affect multiple aligned targets, but it does not provide radial coverage.",
+    "Pellet spread may affect several nearby targets, but it can also concentrate on one target; do not classify reliable group clear without supporting evidence.",
+    "Explosion radius describes spatial reach, while falloff or secondary restrictions determine retained value.",
+    "Do not infer multi-target behavior from the mere presence of a special mechanic; the text or structured fields must explicitly support it."
+  ],
+  "exceptions": [
+    "Do not treat every special mechanic as area or chaining evidence.",
+    "Do not assume chained targets receive full primary-target damage.",
+    "Do not call a weapon area_control solely because it can damage more than one enemy."
+  ]
+}

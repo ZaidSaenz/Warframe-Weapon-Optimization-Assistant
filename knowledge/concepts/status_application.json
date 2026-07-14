@@ -1,0 +1,51 @@
+{
+  "id": "status_application",
+  "title": "Status application",
+  "related_stats": [
+    "status_chance",
+    "fire_rate",
+    "multishot",
+    "pellet_count",
+    "accuracy",
+    "magazine_size",
+    "reload_time",
+    "application_frequency"
+  ],
+  "principles": [
+    "Status application depends on both status chance and the number of valid damage instances that can independently apply status.",
+    "Application frequency, multishot, pellet count, beam ticks, and repeated attacks may create more status opportunities, but only valid hits contribute in practice.",
+    "Status chance alone should not define the weapon's primary role; repeated applications must support the complete attack pattern.",
+    "Multishot creates additional projectiles or damage instances that may roll status independently; it does not directly increase the status chance of an existing projectile.",
+    "Innate pellet count creates more possible status rolls per trigger pull, but only pellets that connect contribute to practical status application.",
+    "Fire rate can increase status opportunities per second, but its practical value depends on magazine size, reload time, ammunition economy, and target contact.",
+    "High pellet count with low per-pellet status chance should not be treated as reliable when spread or accuracy prevents most pellets from connecting.",
+    "A weapon with fewer instances and higher status chance may apply effects more consistently per hit, while many instances may create more total applications when they connect.",
+    "Status chance above 100 percent can produce additional effects from the same eligible damage instance and should not be treated as wasted probability.",
+    "Direct hits, radial damage, beam ticks, chained damage, and other secondary events may use independent statistics or restrictions.",
+    "Do not estimate practical status output by multiplying status chance, fire rate, multishot, and pellet count without accounting for hit consistency, downtime, and mechanics.",
+    "Only discuss accuracy, spread, recoil, or target-contact limitations when those fields or mechanics are explicitly supplied."
+  ],
+  "interpretation": {
+    "aligned": [
+      "Status chance and application frequency reinforce one another.",
+      "Repeated valid damage instances provide meaningful evidence for recurring application."
+    ],
+    "moderate": [
+      "Status application can contribute consistently but does not necessarily define the primary role.",
+      "The supplied data supports a secondary or hybrid contribution."
+    ],
+    "mixed": [
+      "The weapon creates many opportunities with limited chance per instance, or favorable chance with limited frequency.",
+      "Practical performance depends strongly on valid contact."
+    ],
+    "limited": [
+      "The supplied data provides limited evidence for dependable status application.",
+      "Status may remain incidental."
+    ]
+  },
+  "exceptions": [
+    "Do not assume beam tick frequency when it is not supplied.",
+    "Do not assume radial, chained, or secondary damage shares direct-hit status behavior.",
+    "Do not call the weapon a status weapon only because status chance is numerically higher."
+  ]
+}

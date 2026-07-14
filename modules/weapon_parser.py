@@ -1,8 +1,11 @@
-"""Validación y normalización de datos de armas.
 
-Este módulo solo responde una pregunta: ¿qué datos objetivos recibió el
-programa? No intenta decidir si una estadística es buena, mala o adecuada para
-una build. Las interpretaciones de uso pertenecen a la capa de IA.
+# modules/weapon_parser.py
+
+"""Validación y normalización de datos objetivos de armas.
+
+Este módulo determina únicamente qué datos recibió la aplicación y los
+convierte a un esquema estable. No clasifica estadísticas como buenas o malas,
+no asigna roles y no genera recomendaciones.
 """
 
 from __future__ import annotations
@@ -12,8 +15,9 @@ from collections.abc import Mapping
 from typing import Any
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 MAX_WEAPON_NAME_LENGTH = 120
+MAX_WEAPON_CLASS_LENGTH = 80
 MAX_SPECIAL_MECHANIC_LENGTH = 2000
 
 DAMAGE_TYPES = (
@@ -33,7 +37,11 @@ DAMAGE_TYPES = (
     "void",
 )
 
-PHYSICAL_DAMAGE_TYPES = {"impact", "puncture", "slash"}
+PHYSICAL_DAMAGE_TYPES = {
+    "impact",
+    "puncture",
+    "slash",
+}
 
 FIRING_MODES = {
     "automatic",
@@ -63,7 +71,11 @@ CATEGORY_ALIASES = {
     "melee": "melee",
 }
 
-DATA_SOURCES = {"manual", "database", "scraping"}
+DATA_SOURCES = {
+    "manual",
+    "database",
+    "scraping",
+}
 
 
 class WeaponValidationError(ValueError):
@@ -112,29 +124,41 @@ def _number(
 
     if not text:
         if required:
-            errors.append(f"Falta el campo obligatorio: {field}.")
+            errors.append(
+                f"Falta el campo obligatorio: {field}."
+            )
         return None
 
     if isinstance(value, bool):
-        errors.append(f"{field} debe ser numérico.")
+        errors.append(
+            f"{field} debe ser numérico."
+        )
         return None
 
     try:
         number = float(text.replace(",", "."))
     except (TypeError, ValueError):
-        errors.append(f"{field} debe ser numérico.")
+        errors.append(
+            f"{field} debe ser numérico."
+        )
         return None
 
     if not math.isfinite(number):
-        errors.append(f"{field} debe ser un número finito.")
+        errors.append(
+            f"{field} debe ser un número finito."
+        )
         return None
 
     if minimum is not None and number < minimum:
-        errors.append(f"{field} debe ser mayor o igual que {minimum}.")
+        errors.append(
+            f"{field} debe ser mayor o igual que {minimum}."
+        )
         return None
 
     if maximum is not None and number > maximum:
-        errors.append(f"{field} debe ser menor o igual que {maximum}.")
+        errors.append(
+            f"{field} debe ser menor o igual que {maximum}."
+        )
         return None
 
     return number
@@ -154,7 +178,11 @@ def _integer(
         field,
         errors,
         minimum=float(minimum),
-        maximum=float(maximum) if maximum is not None else None,
+        maximum=(
+            float(maximum)
+            if maximum is not None
+            else None
+        ),
         required=required,
     )
 
@@ -162,7 +190,9 @@ def _integer(
         return None
 
     if not number.is_integer():
-        errors.append(f"{field} debe ser un número entero.")
+        errors.append(
+            f"{field} debe ser un número entero."
+        )
         return None
 
     return int(number)
@@ -228,13 +258,25 @@ def _boolean(
 
     normalized = _text(value).lower()
 
-    if normalized in {"true", "1", "yes", "si", "sí"}:
+    if normalized in {
+        "true",
+        "1",
+        "yes",
+        "si",
+        "sí",
+    }:
         return True
 
-    if normalized in {"false", "0", "no"}:
+    if normalized in {
+        "false",
+        "0",
+        "no",
+    }:
         return False
 
-    errors.append(f"{field} debe ser verdadero o falso.")
+    errors.append(
+        f"{field} debe ser verdadero o falso."
+    )
     return default
 
 
@@ -252,29 +294,45 @@ def _normalize_choice(
         return default
 
     if not normalized:
-        errors.append(f"Falta el campo obligatorio: {field}.")
+        errors.append(
+            f"Falta el campo obligatorio: {field}."
+        )
         return ""
 
     if normalized not in allowed_values:
-        allowed = ", ".join(sorted(allowed_values))
+        allowed = ", ".join(
+            sorted(allowed_values)
+        )
         errors.append(
-            f"{field} no es válido. Valores permitidos: {allowed}."
+            f"{field} no es válido. "
+            f"Valores permitidos: {allowed}."
         )
 
     return normalized
 
 
-def _normalize_category(value: Any, errors: list[str]) -> str:
-    category = CATEGORY_ALIASES.get(_text(value).lower(), "")
+def _normalize_category(
+    value: Any,
+    errors: list[str],
+) -> str:
+    category = CATEGORY_ALIASES.get(
+        _text(value).lower(),
+        "",
+    )
 
     if not category:
-        errors.append("weapon_category debe ser primary, secondary o melee.")
+        errors.append(
+            "weapon_category debe ser "
+            "primary, secondary o melee."
+        )
 
     return category
 
 
-def _compact(values: Mapping[str, Any]) -> dict[str, Any]:
-    """Elimina únicamente valores ausentes; conserva cero y False."""
+def _compact(
+    values: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Elimina valores ausentes, conservando cero y False."""
 
     return {
         key: value
@@ -290,7 +348,10 @@ def _parse_base_damage(
     source = raw_data.get("base_damage")
 
     if not isinstance(source, Mapping):
-        errors.append("base_damage debe ser un diccionario de tipos de daño.")
+        errors.append(
+            "base_damage debe ser un diccionario "
+            "de tipos de daño."
+        )
         source = {}
 
     normalized_source = {
@@ -325,27 +386,49 @@ def _parse_base_damage(
         )
 
         if value is not None and value > 0:
-            components[damage_type] = round(value, 4)
+            components[damage_type] = round(
+                value,
+                4,
+            )
 
-    total = round(sum(components.values()), 4)
+    total = round(
+        sum(components.values()),
+        4,
+    )
 
     if total <= 0:
         errors.append(
-            "base_damage debe contener al menos un tipo de daño mayor que cero."
+            "base_damage debe contener al menos "
+            "un tipo de daño mayor que cero."
         )
 
     distribution = (
         {
-            damage_type: round(value / total * 100.0, 4)
-            for damage_type, value in components.items()
+            damage_type: round(
+                value / total * 100.0,
+                4,
+            )
+            for damage_type, value
+            in components.items()
         }
         if total > 0
         else {}
     )
 
-    dominant_type = max(components, key=components.get) if components else None
+    dominant_type = (
+        max(
+            components,
+            key=components.get,
+        )
+        if components
+        else None
+    )
+
     physical_total = sum(
-        components.get(damage_type, 0.0)
+        components.get(
+            damage_type,
+            0.0,
+        )
         for damage_type in PHYSICAL_DAMAGE_TYPES
     )
 
@@ -355,14 +438,83 @@ def _parse_base_damage(
         "distribution_percent": distribution,
         "dominant_type": dominant_type,
         "physical_percent": (
-            round(physical_total / total * 100.0, 4) if total > 0 else 0.0
+            round(
+                physical_total / total * 100.0,
+                4,
+            )
+            if total > 0
+            else 0.0
         ),
         "elemental_percent": (
-            round((total - physical_total) / total * 100.0, 4)
+            round(
+                (total - physical_total)
+                / total
+                * 100.0,
+                4,
+            )
             if total > 0
             else 0.0
         ),
     }
+
+
+def _parse_structured_mechanics(
+    raw_data: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    """
+    Conserva mecánicas explícitas en campos estructurados.
+
+    Estos campos son opcionales y no se deducen desde special_mechanic.
+    """
+    has_chaining = _boolean(
+        raw_data.get("has_chaining"),
+        "has_chaining",
+        errors,
+        default=False,
+    )
+
+    has_damage_ramp = _boolean(
+        raw_data.get("has_damage_ramp"),
+        "has_damage_ramp",
+        errors,
+        default=False,
+    )
+
+    mechanics = {
+        "has_chaining": has_chaining,
+        "has_damage_ramp": has_damage_ramp,
+        "chain_targets": None,
+        "chain_range": None,
+        "chain_damage_retention_percent": None,
+    }
+
+    if has_chaining:
+        mechanics["chain_targets"] = _optional_integer(
+            raw_data,
+            "chain_targets",
+            errors,
+            minimum=1,
+        )
+
+        mechanics["chain_range"] = _optional_number(
+            raw_data,
+            "chain_range",
+            errors,
+            minimum=0.0001,
+        )
+
+        mechanics[
+            "chain_damage_retention_percent"
+        ] = _optional_number(
+            raw_data,
+            "chain_damage_retention_percent",
+            errors,
+            minimum=0.0,
+            maximum=100.0,
+        )
+
+    return _compact(mechanics)
 
 
 def _parse_ranged(
@@ -375,12 +527,14 @@ def _parse_ranged(
         FIRING_MODES,
         errors,
     )
+
     damage_delivery = _normalize_choice(
         raw_data.get("damage_delivery"),
         "damage_delivery",
         DAMAGE_DELIVERY_TYPES,
         errors,
     )
+
     reload_type = _normalize_choice(
         raw_data.get("reload_type"),
         "reload_type",
@@ -394,6 +548,7 @@ def _parse_ranged(
         "has_multiple_pellets",
         errors,
     )
+
     is_explosive = _boolean(
         raw_data.get("is_explosive"),
         "is_explosive",
@@ -404,7 +559,9 @@ def _parse_ranged(
         "firing_mode": firing_mode,
         "damage_delivery": damage_delivery,
         "reload_type": reload_type,
-        "has_multiple_pellets": has_multiple_pellets,
+        "has_multiple_pellets": (
+            has_multiple_pellets
+        ),
         "is_explosive": is_explosive,
     }
 
@@ -440,6 +597,20 @@ def _parse_ranged(
                 errors,
                 minimum=1,
             ),
+            "ammo_pickup": _optional_integer(
+                raw_data,
+                "ammo_pickup",
+                errors,
+                minimum=0,
+            ),
+            "ammo_cost_per_damage_tick": (
+                _optional_number(
+                    raw_data,
+                    "ammo_cost_per_damage_tick",
+                    errors,
+                    minimum=0.0,
+                )
+            ),
             "accuracy": _optional_number(
                 raw_data,
                 "accuracy",
@@ -461,7 +632,7 @@ def _parse_ranged(
         }
     )
 
-    conditional = {
+    conditional: dict[str, Any] = {
         "shots_per_burst": None,
         "charge_time": None,
         "pellet_count": None,
@@ -497,49 +668,61 @@ def _parse_ranged(
         )
 
     if damage_delivery == "projectile":
-        conditional["projectile_speed"] = _optional_number(
-            raw_data,
-            "projectile_speed",
-            errors,
-            minimum=0.0001,
+        conditional["projectile_speed"] = (
+            _optional_number(
+                raw_data,
+                "projectile_speed",
+                errors,
+                minimum=0.0001,
+            )
         )
 
     if damage_delivery == "beam":
-        conditional["beam_range"] = _optional_number(
-            raw_data,
-            "beam_range",
-            errors,
-            minimum=0.0001,
+        conditional["beam_range"] = (
+            _optional_number(
+                raw_data,
+                "beam_range",
+                errors,
+                minimum=0.0001,
+            )
         )
 
     if is_explosive:
-        conditional["explosion_radius"] = _optional_number(
-            raw_data,
-            "explosion_radius",
-            errors,
-            minimum=0.0001,
+        conditional["explosion_radius"] = (
+            _optional_number(
+                raw_data,
+                "explosion_radius",
+                errors,
+                minimum=0.0001,
+            )
         )
 
     if reload_type == "battery":
-        conditional["battery_recharge_rate"] = _optional_number(
-            raw_data,
-            "battery_recharge_rate",
-            errors,
-            minimum=0.0001,
+        conditional["battery_recharge_rate"] = (
+            _optional_number(
+                raw_data,
+                "battery_recharge_rate",
+                errors,
+                minimum=0.0001,
+            )
         )
 
     if reload_type == "shell_by_shell":
-        conditional["reload_per_round"] = _optional_number(
-            raw_data,
-            "reload_per_round",
-            errors,
-            minimum=0.0001,
+        conditional["reload_per_round"] = (
+            _optional_number(
+                raw_data,
+                "reload_per_round",
+                errors,
+                minimum=0.0001,
+            )
         )
 
     return {
         "classification": classification,
         "stats": stats,
-        "conditional_stats": _compact(conditional),
+        "conditional_stats": _compact(
+            conditional
+        ),
     }
 
 
@@ -562,31 +745,36 @@ def _parse_melee(
                     errors,
                     minimum=0.0001,
                 ),
-                "heavy_attack_damage": _optional_number(
-                    raw_data,
-                    "heavy_attack_damage",
-                    errors,
-                    minimum=0.0001,
+                "heavy_attack_damage": (
+                    _optional_number(
+                        raw_data,
+                        "heavy_attack_damage",
+                        errors,
+                        minimum=0.0001,
+                    )
                 ),
-                "heavy_attack_wind_up": _optional_number(
-                    raw_data,
-                    "heavy_attack_wind_up",
-                    errors,
-                    minimum=0.0001,
+                "heavy_attack_wind_up": (
+                    _optional_number(
+                        raw_data,
+                        "heavy_attack_wind_up",
+                        errors,
+                        minimum=0.0001,
+                    )
                 ),
             }
         )
     }
 
 
-def parse_weapon_data(raw_data: Mapping[str, Any]) -> dict[str, Any]:
-    """Valida una entrada y devuelve un esquema objetivo y normalizado.
-
-    El resultado no contiene perfiles, puntuaciones ni recomendaciones.
-    """
+def parse_weapon_data(
+    raw_data: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Valida una entrada y devuelve un esquema objetivo normalizado."""
 
     if not isinstance(raw_data, Mapping):
-        raise TypeError("raw_data debe ser un diccionario o Mapping.")
+        raise TypeError(
+            "raw_data debe ser un diccionario o Mapping."
+        )
 
     errors: list[str] = []
 
@@ -595,9 +783,18 @@ def parse_weapon_data(raw_data: Mapping[str, Any]) -> dict[str, Any]:
         errors,
     )
 
-    source = _text(raw_data.get("data_source", "manual")).lower()
+    source = _text(
+        raw_data.get(
+            "data_source",
+            "manual",
+        )
+    ).lower()
+
     if source not in DATA_SOURCES:
-        errors.append("data_source debe ser manual, database o scraping.")
+        errors.append(
+            "data_source debe ser "
+            "manual, database o scraping."
+        )
 
     weapon_name = _optional_text(
         raw_data.get("weapon_name"),
@@ -605,6 +802,14 @@ def parse_weapon_data(raw_data: Mapping[str, Any]) -> dict[str, Any]:
         errors,
         maximum_length=MAX_WEAPON_NAME_LENGTH,
     )
+
+    weapon_class = _optional_text(
+        raw_data.get("weapon_class"),
+        "weapon_class",
+        errors,
+        maximum_length=MAX_WEAPON_CLASS_LENGTH,
+    )
+
     special_mechanic = _optional_text(
         raw_data.get("special_mechanic"),
         "special_mechanic",
@@ -614,44 +819,72 @@ def parse_weapon_data(raw_data: Mapping[str, Any]) -> dict[str, Any]:
 
     core_stats = {
         "critical_chance_percent": _number(
-            raw_data.get("critical_chance_percent"),
+            raw_data.get(
+                "critical_chance_percent"
+            ),
             "critical_chance_percent",
             errors,
             minimum=0.0,
         ),
         "critical_multiplier": _number(
-            raw_data.get("critical_multiplier"),
+            raw_data.get(
+                "critical_multiplier"
+            ),
             "critical_multiplier",
             errors,
             minimum=1.0,
         ),
         "status_chance_percent": _number(
-            raw_data.get("status_chance_percent"),
+            raw_data.get(
+                "status_chance_percent"
+            ),
             "status_chance_percent",
             errors,
             minimum=0.0,
         ),
     }
 
-    damage = _parse_base_damage(raw_data, errors)
+    damage = _parse_base_damage(
+        raw_data,
+        errors,
+    )
+
+    mechanics = _parse_structured_mechanics(
+        raw_data,
+        errors,
+    )
 
     ranged: dict[str, Any] | None = None
     melee: dict[str, Any] | None = None
 
-    if category in {"primary", "secondary"}:
-        ranged = _parse_ranged(raw_data, errors)
+    if category in {
+        "primary",
+        "secondary",
+    }:
+        ranged = _parse_ranged(
+            raw_data,
+            errors,
+        )
+
     elif category == "melee":
-        melee = _parse_melee(raw_data, errors)
+        melee = _parse_melee(
+            raw_data,
+            errors,
+        )
 
     if errors:
-        raise WeaponValidationError(errors)
+        raise WeaponValidationError(
+            errors
+        )
 
     return {
         "schema_version": SCHEMA_VERSION,
         "data_source": source,
         "weapon_name": weapon_name,
+        "weapon_class": weapon_class,
         "weapon_category": category,
         "special_mechanic": special_mechanic,
+        "mechanics": mechanics,
         "damage": damage,
         "core_stats": core_stats,
         "ranged": ranged,

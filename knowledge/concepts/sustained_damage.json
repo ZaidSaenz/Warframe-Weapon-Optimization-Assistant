@@ -1,0 +1,32 @@
+{
+  "id": "sustained_damage",
+  "title": "Sustained damage cycle",
+  "related_stats": [
+    "fire_rate",
+    "magazine_size",
+    "reload_time",
+    "ammo_cost_per_damage_tick",
+    "ammo_capacity",
+    "ammo_pickup",
+    "application_frequency"
+  ],
+  "principles": [
+    "Sustained performance is determined by the complete repeated cycle of active damage delivery, reload downtime, and ammunition availability.",
+    "Fire rate can increase immediate pressure while also consuming the magazine faster and increasing reload frequency.",
+    "Magazine size and reload time must be interpreted relative to fire rate; none determines sustained performance alone.",
+    "A large magazine is valuable when it meaningfully extends active firing time, while faster reload is most valuable when downtime occupies a significant share of the cycle.",
+    "High fire rate can create strong immediate pressure but may also increase ammunition consumption and long-duration resource demands.",
+    "Practical sustained output depends on maintaining valid target contact; only discuss recoil, accuracy, spread, or transitions when explicitly supplied.",
+    "Reload improvements reduce forced downtime, and their value grows when the weapon has a short active firing window or long interruption.",
+    "Magazine improvements delay reload interruptions, but their value diminishes when the original magazine already lasts substantially longer than supported engagement windows.",
+    "Ammo capacity, ammo pickup, and ammunition cost determine whether the firing cycle can continue across extended use.",
+    "Do not infer ammunition efficiency from fire rate alone when pickup or per-attack cost is absent.",
+    "Sustained damage describes useful pressure over repeated cycles, not uninterrupted firing for an entire mission.",
+    "A sustained firing rhythm does not automatically make sustained_damage the primary job when the complete mechanic more distinctly supports another function."
+  ],
+  "exceptions": [
+    "Do not treat theoretical fire rate as practical sustained output when firing behavior limits real application.",
+    "Do not infer ammunition starvation without capacity, pickup, cost, or explicit evidence.",
+    "Do not merge chained, radial, or secondary damage into the main cycle unless explicitly supplied."
+  ]
+}
