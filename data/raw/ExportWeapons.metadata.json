@@ -1,0 +1,9 @@
+{
+  "source_url": "https://browse.wf/warframe-public-export-plus/ExportWeapons.json",
+  "downloaded_at_utc": "2026-07-17T22:42:18.758385+00:00",
+  "output_path": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/raw/ExportWeapons.json",
+  "weapon_like_entries": 843,
+  "sha256": "544c18a6b3cc3c357ae6075cc327c192ac8760fddcde0c011664070f3f1eacc6",
+  "previous_sha256": null,
+  "backup_path": null
+}
