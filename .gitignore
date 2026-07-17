@@ -81,3 +81,6 @@ models/*.safetensors
 *.bak
 *.swp
 *~
+data/raw/ExportWeapons.json
+data/raw/ExportWeapons.metadata.json
+data/raw/backups/
