@@ -1,0 +1,752 @@
+WARFRAME EXPORT WEAPONS PROFILE
+================================
+Root type: dict
+Root entries: 843
+Dictionary weapon entries: 843
+
+ROOT FIELDS
+===========
+  843  name
+  843  parentName
+  843  icon
+  843  codexSecret
+  843  description
+  843  productCategory
+  843  omegaAttenuation
+  843  variantType
+  843  tradable
+  838  masteryReq
+  836  damagePerShot
+  836  totalDamage
+  836  criticalChance
+  836  criticalMultiplier
+  836  procChance
+  836  fireRate
+  662  behaviours
+  656  slot
+  650  platinumCost
+  612  compatibilityTags
+  589  introducedAt
+  568  holsterCategory
+  547  excludeFromMarket
+  397  noise
+  395  accuracy
+  395  trigger
+  395  reloadTime
+  395  multishot
+  381  magazineSize
+  258  blockingAngle
+  255  comboDuration
+  255  followThrough
+  255  slamAttack
+  255  slideAttack
+  255  heavyAttackDamage
+  255  heavySlamAttack
+  247  range
+  247  slamRadialDamage
+  247  slamRadius
+  245  windUp
+  237  heavySlamRadialDamage
+  237  heavySlamRadius
+  180  partType
+  174  donationStandingBonus
+   71  excludeFromCodex
+   52  maxLevelCap
+   40  defaultUpgrades
+   29  creditsCost
+   24  sentinel
+    6  gunType
+    5  additionalItems
+    5  primeOmegaAttenuation
+    2  bayonetOtherWeaponType
+    1  oneTimePurchasable
+
+PRODUCT CATEGORIES
+==================
+  328  Pistols
+  225  Melee
+  194  LongGuns
+   36  SpecialItems
+   24  SentinelWeapons
+   21  SpaceGuns
+    8  SpaceMelee
+    6  DrifterMelee
+    1  OperatorAmps
+
+BEHAVIOURS PER WEAPON
+=====================
+  429  1
+  220  2
+  181  0
+   11  3
+    2  4
+
+BEHAVIOUR FIELDS
+================
+  893  fireIterations
+  885  impact
+  561  stateName
+  294  projectile
+   52  chargedProjectile
+   51  burst
+
+BEHAVIOUR/TRIGGER VALUES
+========================
+  910  unnamed
+
+DAMAGE TYPES
+============
+
+REPRESENTATIVE EXAMPLES
+=======================
+
+--- DrifterMelee ---
+{
+  "name": "/Lotus/Language/Weapons/TeshinDualSwordsName",
+  "parentName": "/Lotus/Weapons/Tenno/Melee/LotusDualKatana",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/MeleeWeapons/Weapons/TeshinDualSwords.png",
+  "codexSecret": false,
+  "description": "/Lotus/Language/Weapons/TeshinDualSwordsDrifterDesc",
+  "productCategory": "DrifterMelee",
+  "holsterCategory": "DUAL_MELEE",
+  "omegaAttenuation": 0.5,
+  "platinumCost": 130,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "DUAL_SWORDS_STANCE"
+  ],
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_SLASH": 125,
+        "procChance": 0.15
+      }
+    }
+  ],
+  "tradable": false
+}
+
+--- LongGuns ---
+{
+  "name": "/Lotus/Language/Items/PrismaGrakataName",
+  "parentName": "/Lotus/Weapons/Grineer/LongGuns/GrineerAssaultRifle/GrnAssaultRifle",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/PrimaryWeapons/Weapons/PrismaGrakata.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    6,
+    4.999995,
+    4.000005,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 15,
+  "description": "/Lotus/Language/Items/PrismaGrakataDesc",
+  "criticalChance": 0.25,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.21,
+  "fireRate": 21.666668,
+  "masteryReq": 11,
+  "productCategory": "LongGuns",
+  "holsterCategory": "RIFLE",
+  "slot": 1,
+  "accuracy": 28.571428,
+  "omegaAttenuation": 1.3,
+  "noise": "ALARMING",
+  "trigger": "AUTO",
+  "magazineSize": 120,
+  "reloadTime": 2,
+  "multishot": 1,
+  "platinumCost": 125,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "ASSAULT_AMMO"
+  ],
+  "variantType": "VT_VARIANT",
+  "behaviours": [
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerAuto",
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 6.0,
+        "DT_PUNCTURE": 4.999995,
+        "DT_SLASH": 4.000005,
+        "procChance": 0.21
+      }
+    },
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 40,
+        "procChance": 0.1
+      }
+    },
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerAuto",
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 6.0,
+        "DT_PUNCTURE": 4.999995,
+        "DT_SLASH": 4.000005,
+        "procChance": 0.21
+      }
+    }
+  ],
+  "tradable": true,
+  "introducedAt": 1434137115
+}
+
+--- Melee ---
+{
+  "name": "/Lotus/Language/Items/PrismaSkanaName",
+  "parentName": "/Lotus/Weapons/Tenno/Melee/LongSword/LongSword",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/MeleeWeapons/Weapons/PrismaSkana.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    25.500002,
+    25.500002,
+    119,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 170,
+  "description": "/Lotus/Language/Items/PrismaSkanaDesc",
+  "criticalChance": 0.28,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.16,
+  "fireRate": 1,
+  "masteryReq": 8,
+  "productCategory": "Melee",
+  "holsterCategory": "MELEE",
+  "slot": 5,
+  "omegaAttenuation": 1.2,
+  "blockingAngle": 55,
+  "comboDuration": 5,
+  "followThrough": 0.6,
+  "range": 2.5,
+  "slamAttack": 510,
+  "slamRadialDamage": 340,
+  "slamRadius": 7,
+  "slideAttack": 170,
+  "heavyAttackDamage": 850,
+  "heavySlamAttack": 680,
+  "heavySlamRadialDamage": 510,
+  "heavySlamRadius": 8,
+  "windUp": 0.6,
+  "platinumCost": 150,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "SWORDS_STANCE"
+  ],
+  "variantType": "VT_VARIANT",
+  "behaviours": [
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 25.5,
+        "DT_PUNCTURE": 25.5,
+        "DT_SLASH": 119.0,
+        "procChance": 0.16
+      }
+    }
+  ],
+  "defaultUpgrades": [],
+  "tradable": true,
+  "introducedAt": 1432856127
+}
+
+--- OperatorAmps ---
+{
+  "name": "/Lotus/Language/Weapons/DrifterPistolName",
+  "parentName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorAmpWeapon",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/SecondaryWeapons/Weapons/DrifterPistol.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2000,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 2000,
+  "description": "/Lotus/Language/Weapons/DrifterPistolDesc",
+  "criticalChance": 0.4,
+  "criticalMultiplier": 2,
+  "procChance": 0.2,
+  "fireRate": 3.0,
+  "masteryReq": 0,
+  "productCategory": "OperatorAmps",
+  "holsterCategory": "PISTOL",
+  "slot": 1,
+  "accuracy": 16,
+  "omegaAttenuation": 1,
+  "noise": "SILENT",
+  "trigger": "SEMI",
+  "magazineSize": 10,
+  "reloadTime": 2,
+  "multishot": 1,
+  "creditsCost": 4000,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "PROJECTILE",
+    "SEMI_AUTO"
+  ],
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerSemiAuto",
+      "fireIterations": 1,
+      "projectile": {
+        "attack": {
+          "DT_RADIANT": 2000,
+          "procChance": 0.2
+        }
+      },
+      "impact": {
+        "DT_IMPACT": 7.5,
+        "DT_PUNCTURE": 7.5,
+        "DT_SLASH": 15.0,
+        "procChance": 0
+      }
+    },
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerSemiAuto",
+      "fireIterations": 1,
+      "projectile": {
+        "attack": {
+          "DT_RADIANT": 3600,
+          "procChance": 0.5
+        }
+      },
+      "impact": {
+        "DT_IMPACT": 7.5,
+        "DT_PUNCTURE": 7.5,
+        "DT_SLASH": 15.0,
+        "procChance": 0
+      }
+    }
+  ],
+  "tradable": false
+}
+
+--- Pistols ---
+{
+  "name": "/Lotus/Language/Items/VTDetronName",
+  "parentName": "/Lotus/Weapons/Corpus/Pistols/CorpusHandShotgun/CorpusHandCannon",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/SecondaryWeapons/Weapons/MaraDetron.png",
+  "codexSecret": true,
+  "damagePerShot": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    40,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 40,
+  "description": "/Lotus/Language/Items/VTDetronDesc",
+  "criticalChance": 0.08,
+  "criticalMultiplier": 1.5,
+  "procChance": 0.137143,
+  "fireRate": 3.333334,
+  "masteryReq": 9,
+  "productCategory": "Pistols",
+  "slot": 0,
+  "accuracy": 13.333333,
+  "omegaAttenuation": 1.15,
+  "noise": "ALARMING",
+  "trigger": "SEMI",
+  "magazineSize": 8,
+  "reloadTime": 1.05,
+  "multishot": 7,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "PROJECTILE",
+    "SECONDARYSHOTGUN",
+    "SEMI_AUTO"
+  ],
+  "variantType": "VT_VARIANT",
+  "behaviours": [
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerSemiAuto",
+      "fireIterations": 7,
+      "projectile": {
+        "attack": {
+          "DT_RADIATION": 40,
+          "procChance": 0.96
+        }
+      },
+      "impact": {
+        "DT_IMPACT": 7.5,
+        "DT_PUNCTURE": 3.75,
+        "DT_SLASH": 3.75,
+        "procChance": 0.1
+      }
+    }
+  ],
+  "tradable": true,
+  "introducedAt": 1418413371
+}
+
+--- SentinelWeapons ---
+{
+  "name": "/Lotus/Language/Weapons/SentinelFreezeRayRifleName",
+  "parentName": "/Lotus/Weapons/Tenno/Rifle/LotusAssaultRifle",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/SentinelWeapons/SentinelFreezeRayRifle.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    0,
+    0,
+    0,
+    0,
+    26,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 26,
+  "description": "/Lotus/Language/Weapons/SentinelFreezeRayRifleDesc",
+  "criticalChance": 0.08,
+  "criticalMultiplier": 2,
+  "procChance": 0.34,
+  "fireRate": 12.000001,
+  "masteryReq": 0,
+  "productCategory": "SentinelWeapons",
+  "holsterCategory": "RIFLE",
+  "slot": 1,
+  "accuracy": 100,
+  "omegaAttenuation": 1.3,
+  "noise": "ALARMING",
+  "trigger": "HELD",
+  "magazineSize": 80,
+  "reloadTime": 2.2,
+  "sentinel": true,
+  "multishot": 1,
+  "platinumCost": 175,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "BEAM",
+    "ASSAULT_AMMO",
+    "SENTINEL_WEAPON"
+  ],
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerContinous",
+      "fireIterations": 1,
+      "impact": {
+        "DT_FREEZE": 26,
+        "procChance": 0.34
+      }
+    }
+  ],
+  "tradable": false
+}
+
+--- SpaceGuns ---
+{
+  "name": "/Lotus/Language/Weapons/TnShieldFameArchGunName",
+  "parentName": "/Lotus/Weapons/Tenno/Archwing/Primary/ArchGun",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/HeavyWeapons/ShieldFrameArchGun.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    10,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    80,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 90,
+  "description": "/Lotus/Language/Weapons/TnShieldFameArchGunDesc",
+  "criticalChance": 0.1,
+  "criticalMultiplier": 1.4,
+  "procChance": 0.5,
+  "fireRate": 12.000001,
+  "masteryReq": 8,
+  "productCategory": "SpaceGuns",
+  "holsterCategory": "RIFLE",
+  "slot": 1,
+  "accuracy": 8.333333,
+  "omegaAttenuation": 1.05,
+  "noise": "ALARMING",
+  "trigger": "HELD",
+  "magazineSize": 100,
+  "reloadTime": 4.5,
+  "multishot": 1,
+  "platinumCost": 125,
+  "compatibilityTags": [
+    "BATTERY"
+  ],
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerContinous",
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 10,
+        "DT_RADIATION": 80,
+        "procChance": 0.5
+      }
+    },
+    {
+      "stateName": "/Lotus/Language/Menu/Loadout_TriggerCharge",
+      "fireIterations": 1,
+      "projectile": {
+        "attack": {
+          "DT_IMPACT": 140,
+          "DT_EXPLOSION": 180,
+          "DT_RADIATION": 100,
+          "procChance": 0.34
+        },
+        "explosiveAttack": {
+          "DT_EXPLOSION": 400,
+          "DT_RADIATION": 400,
+          "procChance": 0.34
+        }
+      },
+      "impact": {
+        "DT_IMPACT": 3.33333,
+        "DT_PUNCTURE": 3.33333,
+        "DT_SLASH": 3.33334,
+        "procChance": 0.1
+      }
+    }
+  ],
+  "tradable": false
+}
+
+--- SpaceMelee ---
+{
+  "name": "/Lotus/Language/Items/PrismaArchSwordName",
+  "parentName": "/Lotus/Weapons/Tenno/Archwing/Melee/Archsword/ArchSwordWeapon",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Archwing/Weapons/PrismaVeritux.png",
+  "codexSecret": true,
+  "damagePerShot": [
+    59.100002,
+    59.100002,
+    275.79999,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 394,
+  "description": "/Lotus/Language/Items/PrismaArchSwordDesc",
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2,
+  "procChance": 0.2,
+  "fireRate": 1,
+  "masteryReq": 8,
+  "productCategory": "SpaceMelee",
+  "holsterCategory": "MELEE",
+  "slot": 5,
+  "omegaAttenuation": 0.5,
+  "blockingAngle": 90,
+  "comboDuration": 5,
+  "followThrough": 0.7,
+  "range": 3,
+  "slamAttack": 394,
+  "slamRadialDamage": 788,
+  "slamRadius": 3,
+  "slideAttack": 788,
+  "heavyAttackDamage": 394,
+  "heavySlamAttack": 394,
+  "platinumCost": 150,
+  "excludeFromMarket": true,
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 59.1,
+        "DT_PUNCTURE": 59.1,
+        "DT_SLASH": 275.8,
+        "procChance": 0.2
+      }
+    },
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 3.33333,
+        "DT_PUNCTURE": 3.33333,
+        "DT_SLASH": 3.33334,
+        "procChance": 0.1
+      }
+    }
+  ],
+  "tradable": true
+}
+
+--- SpecialItems ---
+{
+  "name": "/Lotus/Language/Suits/ReaperMeleeName",
+  "parentName": "/Lotus/Weapons/Tenno/Melee/PlayerMeleeWeapon",
+  "icon": "/Lotus/Interface/Icons/StoreIcons/Weapons/ExaltedWeapons/WraithReaperClaws.png",
+  "codexSecret": false,
+  "damagePerShot": [
+    72,
+    48,
+    120,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "totalDamage": 240,
+  "description": "/Lotus/Language/Suits/ReaperMeleeDesc",
+  "criticalChance": 0.38,
+  "criticalMultiplier": 2.6,
+  "procChance": 0.24,
+  "fireRate": 1,
+  "masteryReq": 0,
+  "productCategory": "SpecialItems",
+  "holsterCategory": "MELEE",
+  "excludeFromCodex": true,
+  "slot": 7,
+  "omegaAttenuation": 0.5,
+  "blockingAngle": 60,
+  "comboDuration": 5,
+  "followThrough": 1,
+  "range": 1.5,
+  "slamAttack": 720,
+  "slamRadialDamage": 480,
+  "slamRadius": 8,
+  "slideAttack": 480,
+  "heavyAttackDamage": 960,
+  "heavySlamAttack": 960,
+  "heavySlamRadialDamage": 720,
+  "heavySlamRadius": 9,
+  "windUp": 0.9,
+  "platinumCost": 150,
+  "excludeFromMarket": true,
+  "compatibilityTags": [
+    "POWER_WEAPON"
+  ],
+  "variantType": "VT_NORMAL",
+  "behaviours": [
+    {
+      "fireIterations": 1,
+      "impact": {
+        "DT_IMPACT": 72.0,
+        "DT_PUNCTURE": 48.0,
+        "DT_SLASH": 120.0,
+        "procChance": 0.24
+      }
+    }
+  ],
+  "tradable": false,
+  "introducedAt": 1618337042
+}
