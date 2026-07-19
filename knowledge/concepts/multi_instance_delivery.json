@@ -1,0 +1,47 @@
+{
+  "id": "multi_instance_delivery",
+  "title": "Multiple delivery instances",
+  "signal_fields": [
+    "base_instances_per_delivery",
+    "has_multi_instance_evidence",
+    "application_frequency"
+  ],
+  "related_stats": [
+    "fire_iterations",
+    "multishot",
+    "pellet_count",
+    "burst_count",
+    "damage_components"
+  ],
+  "principles": [
+    "Multiple delivery instances describe how many eligible hits or components may occur from one activation; they are not automatically additional ammunition costs.",
+    "Fire iterations, innate pellets, multishot, burst count, and separate damage components represent different mechanisms and must not be treated as interchangeable.",
+    "Several instances may increase critical and status opportunities only when those instances can independently produce valid hits.",
+    "Pellet-style delivery may concentrate on one target or spread across several targets; instance count alone does not establish group clear.",
+    "Burst count represents sequential attacks, while innate pellet or iteration count represents simultaneous or grouped delivery unless supplied data indicates otherwise.",
+    "Separate direct and radial components may both occur from one attack but can use different status, critical, or falloff rules.",
+    "The analysis should use neutral language such as instances or damage events when the source does not explicitly identify pellets or projectiles."
+  ],
+  "interpretation": {
+    "single_instance": [
+      "The supplied activation has one base delivery instance."
+    ],
+    "multiple_instances": [
+      "The supplied activation creates several potential damage instances.",
+      "Practical value depends on independent eligibility and valid contact."
+    ],
+    "mixed_instances": [
+      "The activation combines sequential, simultaneous, or component-based instances.",
+      "Each mechanism must remain distinct."
+    ],
+    "undetermined": [
+      "The supplied fields do not establish how many independent valid instances occur."
+    ]
+  },
+  "exceptions": [
+    "Do not call fire_iterations pellets unless pellet evidence is explicit.",
+    "Do not assume multishot consumes extra ammunition.",
+    "Do not multiply status chance by instance count in the generated response.",
+    "Do not assume every damage component can critically hit or apply status independently."
+  ]
+}

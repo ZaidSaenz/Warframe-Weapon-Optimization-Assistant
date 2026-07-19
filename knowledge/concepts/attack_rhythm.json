@@ -1,0 +1,67 @@
+{
+  "id": "attack_rhythm",
+  "title": "Attack rhythm",
+  "signal_fields": [
+    "attack_behavior",
+    "application_frequency",
+    "continuous_application"
+  ],
+  "related_stats": [
+    "trigger_type",
+    "fire_rate",
+    "burst_count",
+    "burst_delay",
+    "charge_time",
+    "spool_up_time",
+    "attack_speed"
+  ],
+  "principles": [
+    "Attack rhythm describes how damage instances are initiated and repeated; it must not be treated as a damage-delivery type.",
+    "Automatic and continuous triggers can support repeated pressure, but practical application still depends on contact, magazine duration, reload downtime, and ammunition.",
+    "Semi-automatic behavior depends on repeated manual inputs and should not be described as continuous merely because the listed fire rate is high.",
+    "Burst behavior must preserve burst count and intra-burst delay when supplied; listed fire rate alone may not represent the complete burst cycle.",
+    "Charge behavior trades immediate release for a delayed attack and must be evaluated from supplied charge evidence rather than inferred from damage magnitude.",
+    "Active or remotely triggered behavior separates deployment from detonation and should not be described as ordinary semi-automatic fire.",
+    "Duplex behavior may create separate press and release events; do not collapse it into conventional burst behavior unless the supplied attack modes support that interpretation.",
+    "A weapon may contain several attack rhythms across its modes; conclusions must preserve mode boundaries."
+  ],
+  "interpretation": {
+    "automatic": [
+      "The weapon supports repeated fire while the input is maintained.",
+      "Sustained pressure remains conditional on magazine, reload, ammunition, and target contact."
+    ],
+    "semi_automatic": [
+      "Each attack requires a separate input.",
+      "Listed fire rate represents potential cadence rather than guaranteed practical cadence."
+    ],
+    "burst": [
+      "Each activation releases a supplied sequence of attacks.",
+      "Burst count and delay determine how concentrated the delivery is."
+    ],
+    "charge": [
+      "The attack includes an explicit charge stage before release.",
+      "Charge time is an operational cost only when the corresponding field is supplied."
+    ],
+    "continuous": [
+      "Damage is applied through maintained activation.",
+      "Continuous activation does not establish internal tick frequency."
+    ],
+    "active": [
+      "The weapon separates placement or firing from a later activation event.",
+      "Its rhythm should be described as staged rather than conventional repeated fire."
+    ],
+    "duplex": [
+      "The trigger can create distinct press and release behavior.",
+      "The two events must not be assumed to share identical statistics."
+    ],
+    "undetermined": [
+      "The supplied trigger and mode data are insufficient to classify attack rhythm confidently."
+    ]
+  },
+  "exceptions": [
+    "Do not infer practical click speed from the listed semi-automatic fire rate.",
+    "Do not infer charge time from a charge label when no timing value is supplied.",
+    "Do not treat continuous delivery as uninterrupted mission-long firing.",
+    "Do not merge different attack modes into one rhythm."
+  ]
+}

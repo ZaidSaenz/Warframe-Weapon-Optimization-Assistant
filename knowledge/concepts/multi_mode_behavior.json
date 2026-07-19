@@ -1,0 +1,48 @@
+{
+  "id": "multi_mode_behavior",
+  "title": "Multiple attack modes",
+  "signal_fields": [
+    "attack_mode_count",
+    "primary_mode_id",
+    "secondary_mode_ids"
+  ],
+  "related_stats": [
+    "attack_modes",
+    "mode_id",
+    "state_name",
+    "trigger_type",
+    "damage_components"
+  ],
+  "principles": [
+    "A weapon with multiple normalized attack modes must be evaluated mode by mode before a whole-weapon conclusion is produced.",
+    "The first normalized mode must not automatically be treated as the only practical mode when other modes contain distinct triggers, components, or mechanics.",
+    "Statistics from separate modes must not be combined into one imaginary attack.",
+    "A secondary mode may refine or change the weapon's role when its supplied pattern is materially different from the primary mode.",
+    "A mode that appears to be inherited, duplicated, fallback, or auxiliary should be treated cautiously unless its structure or description confirms practical relevance.",
+    "Whole-weapon conclusions should identify the dominant mode and describe meaningful secondary behavior separately.",
+    "Improvement priorities should favor parameters shared by relevant modes unless the requested analysis explicitly targets one mode."
+  ],
+  "interpretation": {
+    "single_mode": [
+      "The supplied weapon contains one normalized attack mode."
+    ],
+    "multiple_similar_modes": [
+      "Several modes exist, but their supplied behavior is substantially similar.",
+      "Avoid overstating mode diversity."
+    ],
+    "multiple_distinct_modes": [
+      "The weapon contains materially different attack modes.",
+      "The primary job may depend on which mode is emphasized."
+    ],
+    "ambiguous_modes": [
+      "Some modes lack enough labels or mechanics to establish their practical role.",
+      "Use cautious wording and preserve uncertainty."
+    ]
+  },
+  "exceptions": [
+    "Do not merge damage values across modes.",
+    "Do not assume an unlabeled mode is an alternate fire.",
+    "Do not assume every normalized mode is player-selectable.",
+    "Do not let a secondary mode overwrite the primary mode without explicit evidence."
+  ]
+}

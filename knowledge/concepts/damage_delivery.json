@@ -1,0 +1,67 @@
+{
+  "id": "damage_delivery",
+  "title": "Damage delivery",
+  "signal_fields": [
+    "damage_delivery",
+    "mechanic_profile",
+    "target_profile"
+  ],
+  "related_stats": [
+    "component_type",
+    "projectile_speed",
+    "explosion_radius",
+    "falloff",
+    "beam_range",
+    "punch_through",
+    "charge_evidence"
+  ],
+  "principles": [
+    "Damage delivery describes how a valid damage instance reaches a target and must remain separate from attack rhythm.",
+    "Direct delivery should not be called hitscan unless the supplied data explicitly distinguishes hitscan from another direct mechanism.",
+    "Projectile-direct delivery may introduce travel behavior, but projectile speed and trajectory must not be invented when absent.",
+    "Projectile-radial delivery combines a projectile event with a spatial damage component; direct impact and radial damage may use different statistics.",
+    "Charged projectile components must be kept separate from uncharged projectile components.",
+    "Radial delivery provides spatial reach but does not automatically establish area control, reliable group clear, or equal damage across the radius.",
+    "Beam delivery should defer to the dedicated beam concept for maintained-contact behavior.",
+    "When several component types exist in one mode, each component must preserve its own evidence and restrictions."
+  ],
+  "interpretation": {
+    "direct": [
+      "The supplied component reaches its target without explicit projectile or radial evidence."
+    ],
+    "projectile": [
+      "The supplied component travels as a projectile.",
+      "Travel limitations remain undetermined without projectile-speed or trajectory evidence."
+    ],
+    "radial": [
+      "The supplied component affects a spatial region.",
+      "Coverage and retained damage require radius, falloff, or equivalent evidence when available."
+    ],
+    "projectile_radial": [
+      "The mode includes projectile travel followed by radial delivery.",
+      "Impact and radial components must not be merged into one unsupported statistic."
+    ],
+    "charged_projectile": [
+      "The supplied charged component is distinct from the uncharged delivery.",
+      "Its statistics and operational cost must be evaluated separately."
+    ],
+    "beam": [
+      "The supplied delivery uses maintained beam contact.",
+      "Detailed interpretation belongs to beam_behavior."
+    ],
+    "mixed": [
+      "The mode contains multiple delivery components.",
+      "Each component must remain traceable to its supplied data."
+    ],
+    "undetermined": [
+      "The supplied component data do not establish a reliable delivery type."
+    ]
+  },
+  "exceptions": [
+    "Do not infer projectile speed from the projectile tag.",
+    "Do not infer explosion radius from a radial component alone.",
+    "Do not assume direct and radial components share critical or status behavior.",
+    "Do not call all direct components hitscan.",
+    "Do not treat every aoe compatibility tag as proof of a radial component."
+  ]
+}

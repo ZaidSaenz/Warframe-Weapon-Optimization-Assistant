@@ -1,6 +1,19 @@
-
 {
   "rules": [
+    {
+      "id": "retrieve_primary_job_selection",
+      "always": true,
+      "retrieve": [
+        "primary_job_selection"
+      ]
+    },
+    {
+      "id": "retrieve_improvement_selection",
+      "always": true,
+      "retrieve": [
+        "improvement_selection"
+      ]
+    },
     {
       "id": "retrieve_critical_profile",
       "match": "any",
@@ -37,6 +50,109 @@
       ],
       "retrieve": [
         "status_application"
+      ]
+    },
+    {
+      "id": "retrieve_attack_rhythm",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "attack_behavior",
+          "operator": "in",
+          "value": [
+            "automatic",
+            "semi_automatic",
+            "burst",
+            "charge",
+            "continuous",
+            "active",
+            "duplex",
+            "melee_repeated"
+          ]
+        }
+      ],
+      "retrieve": [
+        "attack_rhythm"
+      ]
+    },
+    {
+      "id": "retrieve_damage_delivery",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "damage_delivery",
+          "operator": "in",
+          "value": [
+            "direct",
+            "projectile",
+            "radial",
+            "mixed",
+            "beam"
+          ]
+        }
+      ],
+      "retrieve": [
+        "damage_delivery"
+      ]
+    },
+    {
+      "id": "retrieve_multi_mode_behavior",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "attack_mode_count",
+          "operator": "greater_than",
+          "value": 1
+        }
+      ],
+      "retrieve": [
+        "multi_mode_behavior"
+      ]
+    },
+    {
+      "id": "retrieve_multi_instance_delivery",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "has_multi_instance_evidence",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "retrieve": [
+        "multi_instance_delivery"
+      ]
+    },
+    {
+      "id": "retrieve_melee_behavior",
+      "match": "any",
+      "conditions": [
+        {
+          "field": "weapon_category",
+          "operator": "in",
+          "value": [
+            "melee",
+            "archmelee",
+            "drifter_melee"
+          ]
+        }
+      ],
+      "retrieve": [
+        "melee_behavior"
+      ]
+    },
+    {
+      "id": "retrieve_description_evidence",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "description_mechanic_present",
+          "operator": "equals",
+          "value": true
+        }
+      ],
+      "retrieve": [
+        "description_evidence"
       ]
     },
     {
@@ -100,11 +216,25 @@
       ]
     },
     {
+      "id": "retrieve_descriptive_multi_target",
+      "match": "all",
+      "conditions": [
+        {
+          "field": "multi_target_evidence_quality",
+          "operator": "equals",
+          "value": "descriptive"
+        }
+      ],
+      "retrieve": [
+        "multi_target_delivery"
+      ]
+    },
+    {
       "id": "retrieve_special_mechanic_review",
       "match": "all",
       "conditions": [
         {
-          "field": "special_mechanic_present",
+          "field": "special_mechanic_needs_review",
           "operator": "equals",
           "value": true
         }
@@ -139,8 +269,7 @@
           "operator": "in",
           "value": [
             "moderate",
-            "elevated",
-            "undetermined"
+            "elevated"
           ]
         }
       ],
@@ -156,21 +285,23 @@
           "field": "reload_friction",
           "operator": "in",
           "value": [
-            "low",
             "moderate",
             "high",
-            "special_reload",
-            "undetermined"
+            "special_reload"
           ]
         },
         {
           "field": "handling_friction",
           "operator": "in",
           "value": [
-            "low",
             "moderate",
             "high"
           ]
+        },
+        {
+          "field": "has_charge_evidence",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [

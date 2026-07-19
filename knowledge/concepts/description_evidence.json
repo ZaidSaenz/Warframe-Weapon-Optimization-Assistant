@@ -1,0 +1,47 @@
+{
+  "id": "description_evidence",
+  "title": "Description evidence",
+  "signal_fields": [
+    "description_mechanic_present",
+    "description_evidence_quality"
+  ],
+  "related_stats": [
+    "display_description",
+    "description_reference",
+    "structured_mechanics"
+  ],
+  "principles": [
+    "Official description text may confirm a named mechanic, activation condition, target behavior, or handling trait that is absent from normalized statistics.",
+    "Description evidence must remain qualitative unless the description supplies an explicit value.",
+    "Structured fields take precedence when they directly contradict broad promotional wording.",
+    "A description may identify mechanics such as chaining, ricochet, homing, lock-on, delayed detonation, damage ramp, conditional reload, or conditional buffs.",
+    "Flavor text and comparative claims must not be converted into quantitative rankings.",
+    "Character-specific bonuses, external synergies, or conditional transformations should be excluded unless the analysis scope explicitly permits them.",
+    "Description-derived mechanics should be marked as descriptive evidence so they are not mistaken for normalized statistics."
+  ],
+  "interpretation": {
+    "structured_confirmation": [
+      "The description confirms behavior already represented in structured data."
+    ],
+    "qualitative_extension": [
+      "The description supplies a relevant qualitative mechanic not represented by numeric fields.",
+      "The conclusion must preserve its stated conditions."
+    ],
+    "promotional_only": [
+      "The description contains flavor or comparative language without reliable mechanical evidence."
+    ],
+    "conflicting": [
+      "Description text and structured data appear inconsistent.",
+      "Prefer structured evidence and report uncertainty."
+    ],
+    "absent": [
+      "No relevant description evidence is available."
+    ]
+  },
+  "exceptions": [
+    "Do not infer hidden values from adjectives such as powerful, rapid, accurate, or devastating.",
+    "Do not infer a mechanic from the weapon name.",
+    "Do not include Warframe-specific bonuses when external synergies are outside scope.",
+    "Do not let description text overwrite explicit normalized component data."
+  ]
+}

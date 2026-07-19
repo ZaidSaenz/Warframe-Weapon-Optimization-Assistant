@@ -1,0 +1,68 @@
+{
+  "id": "primary_job_selection",
+  "title": "Primary job selection",
+  "signal_fields": [
+    "damage_behavior",
+    "target_profile",
+    "critical_relationship",
+    "status_relationship",
+    "attack_behavior",
+    "mechanic_profile",
+    "weapon_category"
+  ],
+  "related_stats": [
+    "application_frequency",
+    "attack_mode_count",
+    "base_instances_per_delivery",
+    "range",
+    "explosion_radius",
+    "chain_targets",
+    "heavy_attack_damage",
+    "heavy_attack_wind_up"
+  ],
+  "principles": [
+    "The primary job must describe the complete practical attack pattern rather than the single strongest isolated statistic.",
+    "Sustained damage requires repeated useful pressure across firing and reload cycles; a sustained rhythm alone does not automatically make it the primary job.",
+    "Focused damage requires evidence that the attack pattern concentrates value on one target without stronger multi-target or precision evidence.",
+    "Group clear requires reliable multi-target reach through radial, chaining, spread, Punch Through, or another supplied mechanism.",
+    "Area control requires evidence that the weapon influences space, movement, persistent zones, grouping, or repeated area denial; radial damage alone is insufficient.",
+    "Status application should be primary only when both status relationship and repeated valid application opportunities are central to the attack pattern.",
+    "Precision attacks require explicit accuracy, scoped, weak-point, headshot, or equivalent evidence and must not be inferred from semi-automatic behavior alone.",
+    "Heavy attacks apply only to melee or equivalent supplied heavy-attack behavior and require explicit heavy-attack evidence.",
+    "General use is appropriate when no more specific job is clearly supported or when several profiles are balanced without a dominant pattern.",
+    "For multi-mode weapons, choose the job of the dominant practical mode and mention materially different secondary roles separately."
+  ],
+  "interpretation": {
+    "sustained_damage": [
+      "Repeated pressure across complete firing cycles is the best-supported function."
+    ],
+    "focused_damage": [
+      "The supplied attack pattern primarily concentrates damage on individual targets."
+    ],
+    "group_clear": [
+      "The supplied delivery reliably reaches multiple enemies as a central function."
+    ],
+    "area_control": [
+      "The supplied mechanic influences or denies space beyond simply damaging several enemies."
+    ],
+    "status_application": [
+      "Repeated valid status application is the dominant supported function."
+    ],
+    "precision_attacks": [
+      "Explicit precision or weak-point evidence defines the practical role."
+    ],
+    "heavy_attacks": [
+      "Explicit heavy-attack evidence defines the melee role."
+    ],
+    "general_use": [
+      "No narrower role is sufficiently dominant from the supplied evidence."
+    ]
+  },
+  "exceptions": [
+    "Do not select group_clear from an aoe tag alone.",
+    "Do not select area_control from radial damage alone.",
+    "Do not select status_application from status chance alone.",
+    "Do not select precision_attacks from accuracy or semi-automatic behavior alone without precision evidence.",
+    "Do not select heavy_attacks merely because generic heavy-attack fields exist for every melee weapon."
+  ]
+}

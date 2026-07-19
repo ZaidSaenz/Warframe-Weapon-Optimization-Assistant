@@ -1,0 +1,93 @@
+{
+  "id": "improvement_selection",
+  "title": "Improvement selection",
+  "signal_fields": [
+    "critical_relationship",
+    "status_relationship",
+    "reload_friction",
+    "handling_friction",
+    "damage_behavior",
+    "target_profile"
+  ],
+  "related_stats": [
+    "critical_chance",
+    "critical_multiplier",
+    "status_chance",
+    "base_damage",
+    "fire_rate",
+    "multishot",
+    "magazine_size",
+    "reload_time",
+    "accuracy"
+  ],
+  "valid_parameter_directions": {
+    "critical_chance": [
+      "reinforce"
+    ],
+    "critical_multiplier": [
+      "reinforce"
+    ],
+    "status_chance": [
+      "reinforce"
+    ],
+    "base_damage": [
+      "reinforce"
+    ],
+    "fire_rate": [
+      "reinforce"
+    ],
+    "multishot": [
+      "reinforce"
+    ],
+    "magazine_size": [
+      "reinforce",
+      "correct_friction"
+    ],
+    "reload_time": [
+      "correct_friction"
+    ],
+    "accuracy": [
+      "correct_friction"
+    ],
+    "none": [
+      "none"
+    ]
+  },
+  "principles": [
+    "Every improvement must be traceable to a supplied strength, limitation, or supported role.",
+    "Reinforce means increasing a parameter that already supports the selected role or a demonstrated strength.",
+    "Correct friction means reducing a demonstrated operational limitation without redefining the weapon's intrinsic mechanic.",
+    "Critical chance and critical multiplier reinforce a supported critical profile; neither should be used to correct reload, ammunition, accuracy, or handling friction.",
+    "Status chance reinforces supported status application but does not correct target contact, ammunition, or reload friction.",
+    "Base damage is a general reinforcement parameter and must never be labeled as correcting operational friction.",
+    "Fire rate can reinforce repeated pressure or application frequency, but it may worsen magazine, reload, or ammunition pressure.",
+    "Multishot can reinforce delivery instances when valid, but it must not be described as an ammunition-efficiency correction.",
+    "Magazine size can reinforce sustained pressure or correct frequent reload interruption by extending the active firing window.",
+    "Reload time corrects supported reload friction by shortening downtime.",
+    "Accuracy can correct supported contact or spread friction only when accuracy-related evidence exists.",
+    "Use none when no allowed parameter has a supported and semantically valid relationship."
+  ],
+  "interpretation": {
+    "reinforce_strength": [
+      "Choose a parameter already aligned with the supported role or strength."
+    ],
+    "correct_operational_friction": [
+      "Choose only a parameter that directly reduces the supplied friction."
+    ],
+    "tradeoff_required": [
+      "The improvement may reinforce one function while worsening another supplied limitation.",
+      "The reason must mention the relevant tradeoff."
+    ],
+    "none": [
+      "No allowed parameter has sufficient evidence or semantic compatibility."
+    ]
+  },
+  "exceptions": [
+    "Do not pair base_damage with correct_friction.",
+    "Do not pair critical or status parameters with correct_friction.",
+    "Do not recommend accuracy when no accuracy, spread, recoil, or contact limitation is supplied.",
+    "Do not recommend fire rate as a pure improvement when reload or ammunition pressure is already elevated.",
+    "Do not recommend changing chaining, radial behavior, charge behavior, burst count, or another intrinsic mechanic.",
+    "Do not use a parameter absent from allowed_improvement_parameters."
+  ]
+}

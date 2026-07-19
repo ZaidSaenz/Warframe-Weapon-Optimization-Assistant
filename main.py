@@ -255,29 +255,46 @@ HTML_TEMPLATE = """
 
             try {
                 const response = await fetch("/analyze", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        weapon_id: weaponId
-                    })
-                });
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+        weapon_id: weaponId
+    })
+});
 
-                const data = await response.json();
+const rawResponse = await response.text();
 
-                if (!response.ok) {
-                    throw new Error(
-                        data.error || "No fue posible analizar el arma."
-                    );
-                }
+let data;
 
-                resultBox.textContent = data.analysis;
-                resultBox.style.display = "block";
-            } catch (error) {
-                errorBox.textContent = error.message;
-                errorBox.style.display = "block";
-            } finally {
+try {
+    data = rawResponse
+        ? JSON.parse(rawResponse)
+        : {};
+} catch {
+    throw new Error(
+        "El servidor devolvió una respuesta inválida."
+    );
+}
+
+if (!response.ok) {
+    throw new Error(
+        data.error
+        || `Error del servidor (${response.status}).`
+    );
+}
+
+if (!data.analysis) {
+    throw new Error(
+        "El servidor no devolvió un análisis."
+    );
+}
+
+resultBox.textContent = data.analysis;
+resultBox.style.display = "block";
+
+} finally {
                 button.disabled = false;
                 statusBox.style.display = "none";
             }

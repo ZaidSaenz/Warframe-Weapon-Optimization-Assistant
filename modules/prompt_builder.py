@@ -51,6 +51,63 @@ MELEE_CATEGORIES = {
     "drifter_melee",
 }
 
+# Preferred interpretation signal for each concept. This keeps contextual
+# retrieval deterministic even while older knowledge files do not yet expose
+# a complete `signal_fields` declaration.
+CONCEPT_SIGNAL_PREFERENCES = {
+    "ammo_consumption": (
+        "consumption_rate_signal",
+        "ammo_economy_signal",
+    ),
+    "attack_rhythm": (
+        "attack_behavior",
+    ),
+    "beam_behavior": (
+        "damage_delivery",
+    ),
+    "critical_profile": (
+        "critical_relationship",
+    ),
+    "damage_delivery": (
+        "damage_delivery",
+    ),
+    "description_evidence": (
+        "description_evidence_quality",
+    ),
+    "improvement_selection": (),
+    "melee_behavior": (
+        "melee_profile",
+    ),
+    "multi_instance_delivery": (
+        "instance_source",
+    ),
+    "multi_mode_behavior": (
+        "mode_relationship",
+    ),
+    "multi_target_delivery": (
+        "multi_target_type",
+        "target_profile",
+    ),
+    "operational_comfort": (
+        "comfort_rating",
+        "handling_friction",
+        "reload_friction",
+    ),
+    "primary_job_selection": (),
+    "reload_friction": (
+        "reload_friction",
+    ),
+    "special_mechanic_review": (
+        "description_evidence_quality",
+    ),
+    "status_application": (
+        "status_relationship",
+    ),
+    "sustained_damage": (
+        "damage_behavior",
+    ),
+}
+
 
 SYSTEM_PROMPT = """
 You are a technical Warframe weapon analyst.
@@ -201,97 +258,314 @@ def _format_value(value: Any) -> str:
     return str(value)
 
 
+def _concept_id(
+    concept: Mapping[str, Any],
+) -> str:
+    value = concept.get("id")
+    return str(value).strip() if value else ""
+
+
+def _clean_text_items(
+    value: Any,
+) -> list[str]:
+    if not isinstance(value, list):
+        return []
+
+    return [
+        item.strip()
+        for item in value
+        if isinstance(item, str)
+        and item.strip()
+    ]
+
+
+def _candidate_signal_fields(
+    concept: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """
+    Return ordered interpretation fields that may select a concept branch.
+
+    Explicit `signal_fields` take priority. The compatibility map keeps older
+    concept files useful until their schemas are upgraded.
+    """
+    concept_id = _concept_id(
+        concept
+    )
+    candidates: list[str] = []
+
+    signal_fields = concept.get(
+        "signal_fields"
+    )
+
+    if isinstance(signal_fields, list):
+        candidates.extend(
+            str(field).strip()
+            for field in signal_fields
+            if isinstance(field, str)
+            and field.strip()
+        )
+
+    candidates.extend(
+        CONCEPT_SIGNAL_PREFERENCES.get(
+            concept_id,
+            (),
+        )
+    )
+
+    return tuple(
+        dict.fromkeys(candidates)
+    )
+
+
+def _select_interpretation_branch(
+    concept: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+) -> tuple[str | None, list[str]]:
+    """
+    Select the first concept interpretation branch supported by current signals.
+    """
+    branches = concept.get(
+        "interpretation"
+    )
+
+    if not isinstance(branches, Mapping):
+        return None, []
+
+    for field in _candidate_signal_fields(
+        concept
+    ):
+        actual = interpretation.get(field)
+
+        if not isinstance(actual, str):
+            continue
+
+        branch = branches.get(actual)
+
+        if branch is None:
+            continue
+
+        selected = _clean_text_items(
+            branch
+        )
+
+        if selected:
+            return field, selected
+
+    return None, []
+
+
+def _select_general_principles(
+    concept: Mapping[str, Any],
+    *,
+    limit: int,
+) -> list[str]:
+    """
+    Select a small general foundation when no branch-specific rule is enough.
+
+    Principles remain fallback guidance. Branch interpretations carry the
+    context-specific conclusion and therefore take priority.
+    """
+    if limit <= 0:
+        return []
+
+    principles = _clean_text_items(
+        concept.get("principles")
+    )
+
+    return principles[:limit]
+
+
+def _select_exceptions(
+    concept: Mapping[str, Any],
+    *,
+    limit: int,
+) -> list[str]:
+    if limit <= 0:
+        return []
+
+    return _clean_text_items(
+        concept.get("exceptions")
+    )[:limit]
+
+
 def build_analysis_context(
     interpretation: Mapping[str, Any],
     retrieved_knowledge: list[dict[str, Any]],
     *,
-    max_principles_per_concept: int = 3,
+    max_principles_per_concept: int = 2,
+    max_exceptions_per_concept: int = 2,
 ) -> str:
     """
-    Build the deterministic context block included in the model prompt.
+    Build a compact deterministic context for the model.
+
+    Each concept contributes, in order:
+    1. the interpretation branch matching current deterministic signals;
+    2. a limited number of general principles;
+    3. a limited number of safety exceptions.
+
+    This avoids feeding unrelated branches such as pellet, charge, projectile,
+    or heavy-attack guidance to weapons that do not expose that evidence.
     """
     interpretation_lines: list[str] = []
 
     for key, value in interpretation.items():
-        if key in {"evidence"} or not _is_present(value):
+        if (
+            key == "evidence"
+            or not _is_present(value)
+        ):
             continue
 
-        readable_key = key.replace("_", " ").capitalize()
+        readable_key = (
+            key.replace("_", " ")
+            .capitalize()
+        )
         interpretation_lines.append(
-            f"- {readable_key}: {_format_value(value)}"
+            f"- {readable_key}: "
+            f"{_format_value(value)}"
         )
 
-    evidence = interpretation.get("evidence")
+    evidence = interpretation.get(
+        "evidence"
+    )
 
-    if isinstance(evidence, Mapping) and evidence:
+    if (
+        isinstance(evidence, Mapping)
+        and evidence
+    ):
         interpretation_lines.append("")
-        interpretation_lines.append("EVIDENCE USED:")
+        interpretation_lines.append(
+            "EVIDENCE USED:"
+        )
 
         for conclusion, fields in evidence.items():
             if not _is_present(fields):
                 continue
 
-            readable = str(conclusion).replace("_", " ")
+            readable = str(
+                conclusion
+            ).replace("_", " ")
             interpretation_lines.append(
-                f"- {readable}: {_format_value(fields)}"
+                f"- {readable}: "
+                f"{_format_value(fields)}"
             )
 
     knowledge_lines: list[str] = []
-    seen_principles: set[str] = set()
+    seen_items: set[str] = set()
 
     for concept in retrieved_knowledge:
-        if not isinstance(concept, Mapping):
+        if not isinstance(
+            concept,
+            Mapping,
+        ):
             continue
 
-        title = concept.get("title") or concept.get(
-            "id",
-            "Unnamed concept",
+        concept_id = _concept_id(
+            concept
         )
-        principles = concept.get("principles", [])
+        title = (
+            concept.get("title")
+            or concept_id
+            or "Unnamed concept"
+        )
 
-        if not isinstance(principles, list):
-            continue
+        branch_field, branch_items = (
+            _select_interpretation_branch(
+                concept,
+                interpretation,
+            )
+        )
+        principles = _select_general_principles(
+            concept,
+            limit=max_principles_per_concept,
+        )
+        exceptions = _select_exceptions(
+            concept,
+            limit=max_exceptions_per_concept,
+        )
 
-        selected = [
-            principle.strip()
-            for principle in principles
-            if isinstance(principle, str)
-            and principle.strip()
-        ][:max_principles_per_concept]
-
-        unique = [
-            principle
-            for principle in selected
-            if principle not in seen_principles
+        # Preserve order while removing exact duplicates across concepts.
+        branch_items = [
+            item
+            for item in branch_items
+            if item not in seen_items
+        ]
+        principles = [
+            item
+            for item in principles
+            if item not in seen_items
+            and item not in branch_items
+        ]
+        exceptions = [
+            item
+            for item in exceptions
+            if item not in seen_items
+            and item not in branch_items
+            and item not in principles
         ]
 
-        if not unique:
+        if not (
+            branch_items
+            or principles
+            or exceptions
+        ):
             continue
 
-        knowledge_lines.append(f"{title}:")
+        knowledge_lines.append(
+            f"{title}:"
+        )
 
-        for principle in unique:
-            seen_principles.add(principle)
-            knowledge_lines.append(f"- {principle}")
+        if branch_field and branch_items:
+            signal_value = interpretation.get(
+                branch_field
+            )
+            knowledge_lines.append(
+                "- Selected interpretation: "
+                f"{branch_field}="
+                f"{_format_value(signal_value)}"
+            )
+
+            for item in branch_items:
+                seen_items.add(item)
+                knowledge_lines.append(
+                    f"- {item}"
+                )
+
+        for item in principles:
+            seen_items.add(item)
+            knowledge_lines.append(
+                f"- {item}"
+            )
+
+        for item in exceptions:
+            seen_items.add(item)
+            knowledge_lines.append(
+                f"- Constraint: {item}"
+            )
 
         knowledge_lines.append("")
 
-    if knowledge_lines and knowledge_lines[-1] == "":
+    if (
+        knowledge_lines
+        and knowledge_lines[-1] == ""
+    ):
         knowledge_lines.pop()
 
     return (
         "DETERMINISTIC INTERPRETATION:\n"
         + (
-            "\n".join(interpretation_lines)
+            "\n".join(
+                interpretation_lines
+            )
             or "- No interpretation available."
         )
         + "\n\nRELEVANT KNOWLEDGE:\n"
         + (
-            "\n".join(knowledge_lines)
+            "\n".join(
+                knowledge_lines
+            )
             or "- No additional knowledge retrieved."
         )
     )
-
 
 def _primary_mode(
     weapon_data: Mapping[str, Any],
