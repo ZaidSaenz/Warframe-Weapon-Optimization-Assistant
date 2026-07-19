@@ -1,17 +1,22 @@
-"""Minimal web interface for selecting and analyzing saved Warframe weapons.
+"""Minimal web interface for selecting and analyzing normalized Warframe weapons.
 
-The interface contains no editable weapon-stat fields. Weapon definitions are
-loaded from JSON files stored in ``weapons/``. For backwards compatibility,
-``weapon_test.json`` in the project root is also included when present.
+Weapon definitions are loaded from ``data/normalized/weapons.json``. The
+interface contains no editable weapon-stat fields.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from flask import Flask, jsonify, render_template_string, request
 
-from modules.weapon_pipeline import analyze_weapon
+from modules.ai import analyze_weapon
+from modules.weapon_database import (
+    DEFAULT_OUTPUT,
+    WeaponDatabaseError,
+    load_normalized_database,
+)
 
 
 app = Flask(__name__)
@@ -64,7 +69,7 @@ HTML_TEMPLATE = """
         }
 
         main {
-            width: min(100%, 620px);
+            width: min(100%, 680px);
             padding: 32px;
             border: 1px solid #252a31;
             border-radius: 16px;
@@ -133,6 +138,12 @@ HTML_TEMPLATE = """
             opacity: 0.65;
         }
 
+        .database-note {
+            margin: -12px 0 22px;
+            color: #727b86;
+            font-size: 0.84rem;
+        }
+
         .status,
         .result,
         .error {
@@ -171,8 +182,12 @@ HTML_TEMPLATE = """
         <h1>Weapon Analyzer</h1>
 
         <p class="subtitle">
-            Selecciona un arma para analizar sus estadísticas mediante
-            el nuevo pipeline de interpretación y consulta de conocimiento.
+            Selecciona un arma de la base normalizada para analizar sus
+            estadísticas mediante el pipeline local.
+        </p>
+
+        <p class="database-note">
+            {{ weapons|length }} armas disponibles.
         </p>
 
         <form id="weapon-form">
@@ -184,7 +199,7 @@ HTML_TEMPLATE = """
 
                     {% for weapon in weapons %}
                         <option value="{{ weapon.id }}">
-                            {{ weapon.name }}
+                            {{ weapon.label }}
                         </option>
                     {% endfor %}
                 </select>
@@ -273,49 +288,122 @@ HTML_TEMPLATE = """
 """
 
 
-WEAPONS: list[dict[str, str]] = [
-    {
-        "id": "weapon_test",
-        "name": "Arma de prueba",
-    },
-]
+def _database_weapons() -> Mapping[str, Any]:
+    database = load_normalized_database(
+        DEFAULT_OUTPUT
+    )
+
+    weapons = database.get("weapons")
+
+    if not isinstance(weapons, Mapping):
+        raise WeaponDatabaseError(
+            "The normalized database does not contain weapons."
+        )
+
+    return weapons
 
 
-def get_weapon_data(weapon_id: str) -> dict[str, Any]:
-    """
-    Recupera los datos estructurados de un arma.
+def list_weapon_options() -> list[dict[str, str]]:
+    weapons = _database_weapons()
+    options: list[dict[str, str]] = []
 
-    Esta implementación es temporal. Posteriormente puede reemplazarse
-    por un repositorio JSON, una base de datos o un módulo weapon_repository.
-    """
-    if weapon_id != "weapon_test":
-        raise ValueError(f"Arma no encontrada: {weapon_id}")
+    for weapon_id, weapon in weapons.items():
+        if not isinstance(weapon, Mapping):
+            continue
 
-    return {
-        "name": "Weapon Test",
-        "category": "primary",
-        "fire_mode": "automatic",
-        "delivery_type": "hitscan",
-        "base_damage": {
-            "impact": 1.2,
-            "puncture": 4.8,
-            "slash": 6.0,
-        },
-        "critical_chance": 30.0,
-        "critical_multiplier": 3.0,
-        "status_chance": 10.0,
-        "fire_rate": 15.0,
-        "multishot": 1.0,
-        "magazine_size": 200,
-        "reload_time": 3.0,
-    }
+        classification = weapon.get(
+            "classification"
+        )
+
+        if not isinstance(
+            classification,
+            Mapping,
+        ):
+            classification = {}
+
+        display_name = str(
+            weapon.get("display_name")
+            or weapon.get("name_key")
+            or weapon_id
+        ).strip()
+
+        category = str(
+            classification.get("category")
+            or "unknown"
+        ).strip()
+
+        weapon_class = str(
+            classification.get("weapon_class")
+            or ""
+        ).strip()
+
+        mastery_rank = classification.get(
+            "mastery_rank"
+        )
+
+        details = [
+            category,
+        ]
+
+        if weapon_class:
+            details.append(weapon_class)
+
+        if mastery_rank is not None:
+            details.append(
+                f"MR {mastery_rank}"
+            )
+
+        label = (
+            f"{display_name} — "
+            + " · ".join(details)
+        )
+
+        options.append(
+            {
+                "id": str(weapon_id),
+                "name": display_name,
+                "label": label,
+            }
+        )
+
+    options.sort(
+        key=lambda item: item["name"].casefold()
+    )
+
+    return options
+
+
+def get_weapon_data(
+    weapon_id: str,
+) -> dict[str, Any]:
+    weapons = _database_weapons()
+    weapon = weapons.get(weapon_id)
+
+    if not isinstance(weapon, Mapping):
+        raise ValueError(
+            f"Arma no encontrada: {weapon_id}"
+        )
+
+    return dict(weapon)
 
 
 @app.get("/")
-def index() -> str:
+def index() -> str | tuple[str, int]:
+    try:
+        weapons = list_weapon_options()
+    except (FileNotFoundError, WeaponDatabaseError) as error:
+        app.logger.exception(
+            "No se pudo cargar la base normalizada."
+        )
+
+        return render_template_string(
+            HTML_TEMPLATE,
+            weapons=[],
+        ), 500
+
     return render_template_string(
         HTML_TEMPLATE,
-        weapons=WEAPONS,
+        weapons=weapons,
     )
 
 
@@ -326,26 +414,45 @@ def analyze() -> tuple[Any, int] | Any:
     if not isinstance(payload, dict):
         return jsonify(
             {
-                "error": "La solicitud debe contener un objeto JSON.",
+                "error": (
+                    "La solicitud debe contener "
+                    "un objeto JSON."
+                ),
             }
         ), 400
 
     weapon_id = payload.get("weapon_id")
 
-    if not isinstance(weapon_id, str) or not weapon_id.strip():
+    if (
+        not isinstance(weapon_id, str)
+        or not weapon_id.strip()
+    ):
         return jsonify(
             {
-                "error": "El campo weapon_id es obligatorio.",
+                "error": (
+                    "El campo weapon_id es "
+                    "obligatorio."
+                ),
             }
         ), 400
 
+    normalized_weapon_id = weapon_id.strip()
+
     try:
-        weapon_data = get_weapon_data(weapon_id.strip())
-        analysis = analyze_weapon(weapon_data)
+        weapon_data = get_weapon_data(
+            normalized_weapon_id
+        )
+
+        analysis = analyze_weapon(
+            weapon_data
+        )
 
         return jsonify(
             {
-                "weapon_id": weapon_id,
+                "weapon_id": normalized_weapon_id,
+                "weapon_name": weapon_data.get(
+                    "display_name"
+                ),
                 "analysis": analysis,
             }
         )
@@ -357,21 +464,35 @@ def analyze() -> tuple[Any, int] | Any:
             }
         ), 404
 
-    except FileNotFoundError as error:
-        app.logger.exception("No se encontró un archivo requerido.")
+    except (
+        FileNotFoundError,
+        WeaponDatabaseError,
+    ) as error:
+        app.logger.exception(
+            "No se encontró o no se pudo leer "
+            "la base normalizada."
+        )
 
         return jsonify(
             {
-                "error": f"No se encontró un archivo requerido: {error}",
+                "error": (
+                    "No fue posible cargar la base "
+                    f"normalizada: {error}"
+                ),
             }
         ), 500
 
     except Exception:
-        app.logger.exception("Error inesperado durante el análisis.")
+        app.logger.exception(
+            "Error inesperado durante el análisis."
+        )
 
         return jsonify(
             {
-                "error": "Ocurrió un error interno durante el análisis.",
+                "error": (
+                    "Ocurrió un error interno "
+                    "durante el análisis."
+                ),
             }
         ), 500
 

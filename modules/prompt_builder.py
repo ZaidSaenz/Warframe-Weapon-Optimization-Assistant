@@ -36,6 +36,21 @@ IMPROVEMENT_DIRECTIONS = (
     "none",
 )
 
+RANGED_CATEGORIES = {
+    "primary",
+    "secondary",
+    "companion",
+    "archgun",
+    "amp",
+    "special",
+}
+
+MELEE_CATEGORIES = {
+    "melee",
+    "archmelee",
+    "drifter_melee",
+}
+
 
 SYSTEM_PROMPT = """
 You are a technical Warframe weapon analyst.
@@ -49,7 +64,7 @@ Your task is to explain the most plausible behavior of a weapon using only:
 GENERAL RULES
 - Treat statistics as evidence, not universal verdicts.
 - Do not infer mechanics from the weapon name.
-- Use a special mechanic only when it is explicitly supplied.
+- Use a mechanic only when it is explicitly represented by structured data.
 - Do not invent missing statistics, mechanics, behaviors, or operational issues.
 - Do not invent Warframes, companions, primers, Arcanes, Rivens, enemies,
   missions, mods, builds, Formas, or external loadouts.
@@ -63,12 +78,12 @@ GENERAL RULES
 
 BEHAVIOR RULES
 - Describe only behavior supported by supplied data.
-- Continuous damage ramp is not charge time.
-- Do not describe a weapon as charged unless firing_mode is "charge" or
-  charge_time is explicitly present.
-- Pellets, multishot, fire rate, explosion, chaining, Punch Through, and range
-  are different mechanics. Do not merge them into one unsupported claim.
-- A special mechanic may explain behavior, but it is not automatically an
+- Do not describe a weapon as charged unless trigger_type is "charge".
+- Do not merge multishot, fire rate, radial damage, beam delivery, area tags,
+  or range into unsupported mechanics.
+- Multiple attack modes may exist. Base the conclusion on the supplied primary
+  mode and acknowledge additional modes only when they affect the conclusion.
+- A structured mechanic may explain behavior, but it is not automatically an
   improvement parameter.
 
 PRIMARY JOB RULES
@@ -87,22 +102,19 @@ attack pattern. Attack rhythm and primary job are related but not identical.
 
 Examples:
 - Repeated direct fire without area evidence usually supports sustained_damage.
-- A chain, explosion, radial effect, or meaningful multi-target delivery may
-  support group_clear.
+- Radial components or structured area evidence may support group_clear.
 - Status_application is valid only when repeated status application is the
   central function, not merely a secondary contribution.
-- precision_attacks requires explicit precision evidence such as accuracy,
-  weak-point behavior, or a declared precision mechanic.
+- precision_attacks requires explicit operational precision evidence.
 - heavy_attacks requires supplied melee heavy-attack evidence.
 
 IMPROVEMENT RULES
 - Select improvement parameters only from allowed_improvement_parameters.
 - Never recommend "special_mechanic" as a parameter.
 - Never invent a parameter that is absent from the allowed list.
-- Each improvement must either:
-  - reinforce an existing relationship that supports the primary job; or
-  - correct a clearly supported operational friction.
-- Do not choose a parameter merely because its number appears small.
+- Each improvement must either reinforce a relationship supporting the primary
+  job or correct clearly supported operational friction.
+- Do not choose a parameter merely because its value appears small.
 - Do not recommend changing an intrinsic mechanic.
 - Use parameter "none" only when no dominant improvement is justified.
 - When parameter is "none", it must be the only improvement and its direction
@@ -112,8 +124,8 @@ COMFORT RULES
 - Comfort concerns handling and interruptions, not damage potential.
 - Do not mention accuracy when accuracy is absent.
 - Do not mention recoil or control difficulty when recoil is absent.
-- Do not mention projectile travel when damage_delivery is not "projectile".
-- Do not mention charge handling when charge_time is absent.
+- Do not mention projectile travel unless damage_delivery is "projectile".
+- Do not mention charge handling unless attack_behavior is "charge".
 - High fire rate alone does not make a weapon demanding.
 - A long firing window may offset a noticeable reload interruption.
 - Use "undetermined" when operational evidence is insufficient.
@@ -121,8 +133,7 @@ COMFORT RULES
 TERMINOLOGY RULES
 - Use "munición" for ammunition consumption.
 - Do not call beam ammunition "projectiles".
-- Use "aumento progresivo durante el fuego continuo" for damage ramp behavior.
-- Do not translate damage ramp as "carga".
+- Do not translate continuous firing behavior as charge behavior.
 
 REQUIRED OUTPUT
 Return only one valid JSON object with this exact structure:
@@ -166,109 +177,211 @@ def _json(value: Any) -> str:
 
 
 def _is_present(value: Any) -> bool:
-    """
-    Treat zero and False as present values.
-
-    Only None, empty strings, empty lists and empty dictionaries are absent.
-    """
     return value not in (None, "", [], {})
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _format_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+
     if isinstance(value, Mapping):
-        return value
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+
+    return str(value)
+
+
+def build_analysis_context(
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: list[dict[str, Any]],
+    *,
+    max_principles_per_concept: int = 3,
+) -> str:
+    """
+    Build the deterministic context block included in the model prompt.
+    """
+    interpretation_lines: list[str] = []
+
+    for key, value in interpretation.items():
+        if key in {"evidence"} or not _is_present(value):
+            continue
+
+        readable_key = key.replace("_", " ").capitalize()
+        interpretation_lines.append(
+            f"- {readable_key}: {_format_value(value)}"
+        )
+
+    evidence = interpretation.get("evidence")
+
+    if isinstance(evidence, Mapping) and evidence:
+        interpretation_lines.append("")
+        interpretation_lines.append("EVIDENCE USED:")
+
+        for conclusion, fields in evidence.items():
+            if not _is_present(fields):
+                continue
+
+            readable = str(conclusion).replace("_", " ")
+            interpretation_lines.append(
+                f"- {readable}: {_format_value(fields)}"
+            )
+
+    knowledge_lines: list[str] = []
+    seen_principles: set[str] = set()
+
+    for concept in retrieved_knowledge:
+        if not isinstance(concept, Mapping):
+            continue
+
+        title = concept.get("title") or concept.get(
+            "id",
+            "Unnamed concept",
+        )
+        principles = concept.get("principles", [])
+
+        if not isinstance(principles, list):
+            continue
+
+        selected = [
+            principle.strip()
+            for principle in principles
+            if isinstance(principle, str)
+            and principle.strip()
+        ][:max_principles_per_concept]
+
+        unique = [
+            principle
+            for principle in selected
+            if principle not in seen_principles
+        ]
+
+        if not unique:
+            continue
+
+        knowledge_lines.append(f"{title}:")
+
+        for principle in unique:
+            seen_principles.add(principle)
+            knowledge_lines.append(f"- {principle}")
+
+        knowledge_lines.append("")
+
+    if knowledge_lines and knowledge_lines[-1] == "":
+        knowledge_lines.pop()
+
+    return (
+        "DETERMINISTIC INTERPRETATION:\n"
+        + (
+            "\n".join(interpretation_lines)
+            or "- No interpretation available."
+        )
+        + "\n\nRELEVANT KNOWLEDGE:\n"
+        + (
+            "\n".join(knowledge_lines)
+            or "- No additional knowledge retrieved."
+        )
+    )
+
+
+def _primary_mode(
+    weapon_data: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    modes = weapon_data.get("attack_modes")
+
+    if not isinstance(modes, list):
+        return {}
+
+    for mode in modes:
+        if isinstance(mode, Mapping):
+            return mode
 
     return {}
-
-
-def _compact_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: item
-        for key, item in value.items()
-        if _is_present(item)
-    }
 
 
 def available_improvement_parameters(
     weapon_data: Mapping[str, Any],
 ) -> tuple[str, ...]:
     """
-    Return the exact normalized parameter keys the model may recommend.
-
-    The list is built only from statistics that exist in the parsed weapon.
-    Intrinsic mechanics and descriptive fields are deliberately excluded.
+    Return exact parameter keys backed by the normalized database entry.
     """
     parameters: list[str] = []
 
-    core_stats = _mapping(weapon_data.get("core_stats"))
+    classification = _mapping(
+        weapon_data.get("classification")
+    )
+    shared_stats = _mapping(
+        weapon_data.get("shared_stats")
+    )
+    root_stats = _mapping(
+        weapon_data.get("root_stats")
+    )
+    mode = _primary_mode(
+        weapon_data
+    )
 
     core_parameter_map = (
         ("critical_chance_percent", "critical_chance"),
         ("critical_multiplier", "critical_multiplier"),
         ("status_chance_percent", "status_chance"),
+        ("total_damage", "base_damage"),
     )
 
     for source_key, parameter_key in core_parameter_map:
-        if _is_present(core_stats.get(source_key)):
+        value = (
+            mode.get(source_key)
+            if _is_present(mode.get(source_key))
+            else root_stats.get(source_key)
+        )
+
+        if _is_present(value):
             parameters.append(parameter_key)
 
-    damage = _mapping(weapon_data.get("damage"))
+    category = classification.get("category")
 
-    if _is_present(damage.get("base_total")):
-        parameters.append("base_damage")
-
-    category = weapon_data.get("weapon_category")
-
-    if category in {"primary", "secondary"}:
-        ranged = _mapping(weapon_data.get("ranged"))
-        stats = _mapping(ranged.get("stats"))
-        conditional = _mapping(ranged.get("conditional_stats"))
-
+    if category in RANGED_CATEGORIES:
         ranged_parameter_map = (
-            (stats.get("fire_rate"), "fire_rate"),
-            (stats.get("multishot"), "multishot"),
-            (stats.get("magazine_size"), "magazine_size"),
-            (stats.get("reload_time"), "reload_time"),
-            (stats.get("ammo_capacity"), "ammo_capacity"),
-            (stats.get("ammo_pickup"), "ammo_pickup"),
             (
-                stats.get("ammo_cost_per_damage_tick"),
-                "ammo_cost_per_damage_tick",
+                mode.get("fire_rate")
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
+                "fire_rate",
             ),
-            (stats.get("accuracy"), "accuracy"),
-            (stats.get("recoil"), "recoil"),
-            (stats.get("punch_through"), "punch_through"),
-            (conditional.get("projectile_speed"), "projectile_speed"),
-            (conditional.get("beam_range"), "beam_range"),
-            (conditional.get("explosion_radius"), "explosion_radius"),
-            (conditional.get("charge_time"), "charge_time"),
-            (
-                conditional.get("battery_recharge_rate"),
-                "battery_recharge_rate",
-            ),
-            (
-                conditional.get("reload_per_round"),
-                "reload_per_round",
-            ),
+            (shared_stats.get("multishot"), "multishot"),
+            (shared_stats.get("magazine_size"), "magazine_size"),
+            (shared_stats.get("reload_time"), "reload_time"),
+            (shared_stats.get("accuracy"), "accuracy"),
+            (shared_stats.get("range"), "range"),
         )
 
         for value, parameter_key in ranged_parameter_map:
             if _is_present(value):
                 parameters.append(parameter_key)
 
-    elif category == "melee":
-        melee = _mapping(weapon_data.get("melee"))
-        stats = _mapping(melee.get("stats"))
-
+    elif category in MELEE_CATEGORIES:
         melee_parameter_map = (
-            (stats.get("attack_speed"), "attack_speed"),
-            (stats.get("range"), "melee_range"),
             (
-                stats.get("heavy_attack_damage"),
+                mode.get("fire_rate")
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
+                "attack_speed",
+            ),
+            (shared_stats.get("range"), "melee_range"),
+            (
+                shared_stats.get("heavy_attack_damage"),
                 "heavy_attack_damage",
             ),
             (
-                stats.get("heavy_attack_wind_up"),
+                shared_stats.get("heavy_attack_wind_up"),
                 "heavy_attack_wind_up",
             ),
         )
@@ -284,77 +397,64 @@ def available_operational_fields(
     weapon_data: Mapping[str, Any],
 ) -> tuple[str, ...]:
     """
-    Return operational fields that may legitimately support comfort claims.
+    Return operational fields available for comfort claims.
     """
     fields: list[str] = []
-    category = weapon_data.get("weapon_category")
 
-    if category in {"primary", "secondary"}:
-        ranged = _mapping(weapon_data.get("ranged"))
-        classification = _mapping(ranged.get("classification"))
-        stats = _mapping(ranged.get("stats"))
-        conditional = _mapping(ranged.get("conditional_stats"))
+    classification = _mapping(
+        weapon_data.get("classification")
+    )
+    shared_stats = _mapping(
+        weapon_data.get("shared_stats")
+    )
+    root_stats = _mapping(
+        weapon_data.get("root_stats")
+    )
+    mode = _primary_mode(
+        weapon_data
+    )
 
+    category = classification.get("category")
+
+    if category in RANGED_CATEGORIES:
         field_map = (
             (
-                classification.get("firing_mode"),
-                "firing_mode",
+                mode.get("trigger_type")
+                or shared_stats.get("trigger_type"),
+                "trigger_type",
             ),
             (
-                classification.get("damage_delivery"),
-                "damage_delivery",
+                mode.get("fire_rate")
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
+                "fire_rate",
             ),
-            (
-                classification.get("reload_type"),
-                "reload_type",
-            ),
-            (stats.get("fire_rate"), "fire_rate"),
-            (stats.get("magazine_size"), "magazine_size"),
-            (stats.get("reload_time"), "reload_time"),
-            (stats.get("ammo_capacity"), "ammo_capacity"),
-            (stats.get("ammo_pickup"), "ammo_pickup"),
-            (
-                stats.get("ammo_cost_per_damage_tick"),
-                "ammo_cost_per_damage_tick",
-            ),
-            (stats.get("accuracy"), "accuracy"),
-            (stats.get("recoil"), "recoil"),
-            (conditional.get("charge_time"), "charge_time"),
-            (
-                conditional.get("projectile_speed"),
-                "projectile_speed",
-            ),
-            (conditional.get("beam_range"), "beam_range"),
-            (
-                conditional.get("battery_recharge_rate"),
-                "battery_recharge_rate",
-            ),
-            (
-                conditional.get("reload_per_round"),
-                "reload_per_round",
-            ),
+            (shared_stats.get("magazine_size"), "magazine_size"),
+            (shared_stats.get("reload_time"), "reload_time"),
+            (shared_stats.get("accuracy"), "accuracy"),
+            (shared_stats.get("range"), "range"),
+            (shared_stats.get("noise"), "noise"),
         )
-
-        for value, field_name in field_map:
-            if _is_present(value):
-                fields.append(field_name)
-
-    elif category == "melee":
-        melee = _mapping(weapon_data.get("melee"))
-        stats = _mapping(melee.get("stats"))
-
+    elif category in MELEE_CATEGORIES:
         field_map = (
-            (stats.get("attack_speed"), "attack_speed"),
-            (stats.get("range"), "melee_range"),
             (
-                stats.get("heavy_attack_wind_up"),
+                mode.get("fire_rate")
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
+                "attack_speed",
+            ),
+            (shared_stats.get("range"), "melee_range"),
+            (
+                shared_stats.get("heavy_attack_wind_up"),
                 "heavy_attack_wind_up",
             ),
         )
+    else:
+        field_map = ()
 
-        for value, field_name in field_map:
-            if _is_present(value):
-                fields.append(field_name)
+    for value, field_name in field_map:
+        if _is_present(value):
+            fields.append(field_name)
 
     return tuple(dict.fromkeys(fields))
 
@@ -362,9 +462,6 @@ def available_operational_fields(
 def absent_operational_fields(
     weapon_data: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    """
-    Explicitly identify absent fields that the model must not invent.
-    """
     relevant_fields = {
         "accuracy",
         "recoil",
@@ -376,34 +473,70 @@ def absent_operational_fields(
         "ammo_cost_per_damage_tick",
     }
 
-    present = set(available_operational_fields(weapon_data))
+    present = set(
+        available_operational_fields(
+            weapon_data
+        )
+    )
 
-    return tuple(sorted(relevant_fields - present))
+    return tuple(
+        sorted(
+            relevant_fields - present
+        )
+    )
 
 
 def _safe_weapon_data(
     weapon_data: Mapping[str, Any],
 ) -> dict[str, Any]:
     """
-    Remove identity and empty category sections before prompting the model.
+    Keep only fields useful to the model and remove internal database metadata.
     """
-    safe = dict(weapon_data)
+    classification = dict(
+        _mapping(
+            weapon_data.get("classification")
+        )
+    )
+    shared_stats = dict(
+        _mapping(
+            weapon_data.get("shared_stats")
+        )
+    )
+    root_stats = dict(
+        _mapping(
+            weapon_data.get("root_stats")
+        )
+    )
 
-    safe.pop("weapon_name", None)
-    safe.pop("data_source", None)
-    safe.pop("schema_version", None)
+    modes: list[dict[str, Any]] = []
 
-    if safe.get("ranged") is None:
-        safe.pop("ranged", None)
+    raw_modes = weapon_data.get("attack_modes")
 
-    if safe.get("melee") is None:
-        safe.pop("melee", None)
+    if isinstance(raw_modes, list):
+        for raw_mode in raw_modes:
+            if isinstance(raw_mode, Mapping):
+                modes.append(dict(raw_mode))
 
-    damage = _mapping(safe.get("damage"))
-    if damage:
-        safe["damage"] = _compact_mapping(damage)
+    safe = {
+        "weapon_name": weapon_data.get("display_name"),
+        "classification": classification,
+        "shared_stats": shared_stats,
+        "root_stats": root_stats,
+        "attack_modes": modes,
+    }
 
-    return safe
+    description = weapon_data.get(
+        "display_description"
+    )
+
+    if _is_present(description):
+        safe["description_reference"] = description
+
+    return {
+        key: value
+        for key, value in safe.items()
+        if _is_present(value)
+    }
 
 
 def build_weapon_prompt(
@@ -411,31 +544,45 @@ def build_weapon_prompt(
     analysis_context: str,
 ) -> str:
     """
-    Build the single user prompt used by the local RAG generation stage.
-
-    The prompt contains a closed list of improvement parameters and explicit
-    evidence boundaries to reduce unsupported conclusions from a small model.
+    Build the single prompt used by the local generation stage.
     """
-    if not isinstance(weapon_data, Mapping):
-        raise PromptBuilderError("weapon_data must be a Mapping.")
+    if not isinstance(
+        weapon_data,
+        Mapping,
+    ):
+        raise PromptBuilderError(
+            "weapon_data must be a Mapping."
+        )
 
-    context = str(analysis_context or "").strip()
+    context = str(
+        analysis_context or ""
+    ).strip()
 
     if not context:
-        raise PromptBuilderError("analysis_context cannot be empty.")
+        raise PromptBuilderError(
+            "analysis_context cannot be empty."
+        )
 
-    safe_weapon_data = _safe_weapon_data(weapon_data)
+    safe_weapon_data = _safe_weapon_data(
+        weapon_data
+    )
 
     allowed_parameters = list(
-        available_improvement_parameters(weapon_data)
+        available_improvement_parameters(
+            weapon_data
+        )
     )
 
     operational_fields = list(
-        available_operational_fields(weapon_data)
+        available_operational_fields(
+            weapon_data
+        )
     )
 
     absent_fields = list(
-        absent_operational_fields(weapon_data)
+        absent_operational_fields(
+            weapon_data
+        )
     )
 
     generation_constraints = {
@@ -450,8 +597,8 @@ def build_weapon_prompt(
         ],
         "available_operational_fields": operational_fields,
         "absent_operational_fields": absent_fields,
-        "special_mechanic_is_descriptive_evidence": True,
-        "special_mechanic_is_not_an_improvement_parameter": True,
+        "structured_mechanics_are_descriptive_evidence": True,
+        "structured_mechanics_are_not_improvement_parameters": True,
     }
 
     prompt = (
@@ -467,9 +614,9 @@ def build_weapon_prompt(
         "Every improvement parameter must exactly match one value from "
         "allowed_improvement_parameters. "
         "Do not discuss absent operational fields. "
-        "Do not recommend changing the special mechanic. "
+        "Do not recommend changing intrinsic mechanics. "
         "Select the primary job that best describes the complete practical "
-        "attack pattern, not merely its firing rhythm."
+        "attack pattern."
     )
 
     logger.info(

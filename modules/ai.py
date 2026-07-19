@@ -22,8 +22,6 @@ from modules.prompt_builder import (
     available_improvement_parameters,
     build_weapon_prompt,
 )
-from modules.weapon_interpreter import interpret_weapon
-from modules.weapon_parser import parse_weapon_data
 from modules.weapon_pipeline import prepare_weapon_analysis
 
 
@@ -585,41 +583,60 @@ def _available_operational_fields(
 ) -> set[str]:
     available: set[str] = set()
 
-    ranged = weapon_data.get("ranged")
+    shared_stats = _nested_mapping(
+        weapon_data.get("shared_stats")
+    )
+    root_stats = _nested_mapping(
+        weapon_data.get("root_stats")
+    )
 
-    if isinstance(ranged, Mapping):
-        classification = _nested_mapping(
-            ranged.get("classification")
-        )
-        stats = _nested_mapping(
-            ranged.get("stats")
-        )
-        conditional = _nested_mapping(
-            ranged.get("conditional_stats")
-        )
+    for field, value in shared_stats.items():
+        if value not in (None, "", [], {}):
+            available.add(str(field))
 
-        for field, value in classification.items():
-            if value not in (None, ""):
-                available.add(str(field))
+    for field, value in root_stats.items():
+        if value not in (None, "", [], {}):
+            available.add(str(field))
 
-        for field, value in stats.items():
-            if value not in (None, ""):
-                available.add(str(field))
+    attack_modes = weapon_data.get(
+        "attack_modes"
+    )
 
-        for field, value in conditional.items():
-            if value not in (None, ""):
-                available.add(str(field))
+    if isinstance(attack_modes, list):
+        for mode in attack_modes:
+            if not isinstance(mode, Mapping):
+                continue
 
-    melee = weapon_data.get("melee")
+            for field, value in mode.items():
+                if value not in (None, "", [], {}):
+                    available.add(str(field))
 
-    if isinstance(melee, Mapping):
-        stats = _nested_mapping(
-            melee.get("stats")
-        )
+    if "trigger_type" in available:
+        available.add("firing_mode")
 
-        for field, value in stats.items():
-            if value not in (None, ""):
-                available.add(str(field))
+    if "fire_rate" in available:
+        category = _nested_mapping(
+            weapon_data.get("classification")
+        ).get("category")
+
+        if category in {
+            "melee",
+            "archmelee",
+            "drifter_melee",
+        }:
+            available.add("attack_speed")
+
+    if "range" in available:
+        category = _nested_mapping(
+            weapon_data.get("classification")
+        ).get("category")
+
+        if category in {
+            "melee",
+            "archmelee",
+            "drifter_melee",
+        }:
+            available.add("melee_range")
 
     return available
 
@@ -643,14 +660,17 @@ def _infer_primary_job_hint(
         "attack_behavior"
     )
 
-    chain_targets = int(
-        mechanic.get("chain_targets") or 0
+    has_area_delivery = (
+        mechanic.get("has_area_delivery") is True
+        or mechanic.get("has_radial_component") is True
+        or interpretation.get(
+            "has_structured_multi_target_evidence"
+        ) is True
     )
 
     if (
         target_profile == "multi_target_capable"
-        and mechanic.get("has_chaining") is True
-        and chain_targets >= 2
+        and has_area_delivery
     ):
         return "group_clear"
 
@@ -840,50 +860,33 @@ def _has_demanding_evidence(
     ):
         return True
 
-    ranged = weapon_data.get("ranged")
+    shared_stats = _nested_mapping(
+        weapon_data.get("shared_stats")
+    )
 
-    if isinstance(ranged, Mapping):
-        stats = _nested_mapping(
-            ranged.get("stats")
-        )
+    operational_values = (
+        shared_stats.get("accuracy"),
+        shared_stats.get("recoil"),
+        shared_stats.get("heavy_attack_wind_up"),
+    )
 
-        conditional = _nested_mapping(
-            ranged.get("conditional_stats")
-        )
+    if any(
+        value not in (None, "")
+        for value in operational_values
+    ):
+        return True
 
-        accuracy = stats.get("accuracy")
-        recoil = stats.get("recoil")
-        charge_time = conditional.get(
-            "charge_time"
-        )
-        projectile_speed = conditional.get(
-            "projectile_speed"
-        )
+    attack_modes = weapon_data.get(
+        "attack_modes"
+    )
 
-        if any(
-            value not in (None, "")
-            for value in (
-                accuracy,
-                recoil,
-                charge_time,
-                projectile_speed,
-            )
-        ):
-            return True
+    if isinstance(attack_modes, list):
+        for mode in attack_modes:
+            if not isinstance(mode, Mapping):
+                continue
 
-    melee = weapon_data.get("melee")
-
-    if isinstance(melee, Mapping):
-        stats = _nested_mapping(
-            melee.get("stats")
-        )
-
-        heavy_wind_up = stats.get(
-            "heavy_attack_wind_up"
-        )
-
-        if heavy_wind_up not in (None, ""):
-            return True
+            if mode.get("trigger_type") == "charge":
+                return True
 
     return False
 
@@ -965,7 +968,7 @@ def _validate_primary_job(
         )
 
 
-def _validate_chain_semantics(
+def _validate_area_semantics(
     analysis: Mapping[str, Any],
     *,
     interpretation: Mapping[str, Any],
@@ -974,38 +977,32 @@ def _validate_chain_semantics(
         interpretation.get("mechanic_profile")
     )
 
-    if mechanic.get("has_chaining") is not True:
-        return
-
-    retention = mechanic.get(
-        "chain_damage_retention_percent"
+    has_area_evidence = (
+        mechanic.get("has_area_delivery") is True
+        or mechanic.get("has_radial_component") is True
+        or interpretation.get(
+            "has_structured_multi_target_evidence"
+        ) is True
     )
-
-    if retention in (None, ""):
-        return
-
-    retention_value = float(retention)
-
-    if retention_value >= 100.0:
-        return
 
     combined_text = _collect_analysis_text(
         analysis
     )
 
-    unsupported_full_damage_terms = (
-        "full damage to chained targets",
-        "full damage on chained targets",
-        "daño completo a los objetivos encadenados",
-        "mismo daño a todos los objetivos",
-        "daño completo en cada cadena",
+    unsupported_area_terms = (
+        "explosión",
+        "explosive",
+        "radial",
     )
 
-    for term in unsupported_full_damage_terms:
+    if has_area_evidence:
+        return
+
+    for term in unsupported_area_terms:
         if term in combined_text:
             raise ModelResponseError(
-                "The response incorrectly claims "
-                "full chained-target damage."
+                "The response claims area or radial "
+                "behavior without structured evidence."
             )
 
 
@@ -1040,7 +1037,7 @@ def _validate_semantics(
         interpretation=interpretation,
     )
 
-    _validate_chain_semantics(
+    _validate_area_semantics(
         analysis,
         interpretation=interpretation,
     )
@@ -1307,32 +1304,30 @@ def generate_analysis(
 
 
 def analyze_weapon_state(
-    raw_weapon_data: Mapping[str, Any],
+    normalized_weapon_data: Mapping[str, Any],
 ) -> dict[str, Any]:
     """
     Return deterministic RAG state and validated analysis.
     """
     if not isinstance(
-        raw_weapon_data,
+        normalized_weapon_data,
         Mapping,
     ):
         raise TypeError(
-            "raw_weapon_data must be a Mapping."
+            "normalized_weapon_data must be a Mapping."
         )
 
-    if not raw_weapon_data:
+    if not normalized_weapon_data:
         raise ValueError(
             "No weapon data was supplied."
         )
 
-    raw_dict = dict(
-        raw_weapon_data
+    weapon_dict = dict(
+        normalized_weapon_data
     )
 
     prepared = prepare_weapon_analysis(
-        raw_dict,
-        parser=parse_weapon_data,
-        interpreter=interpret_weapon,
+        weapon_dict
     )
 
     weapon_data = prepared[
@@ -1547,11 +1542,11 @@ def format_analysis(
 
 
 def analyze_weapon(
-    raw_weapon_data: Mapping[str, Any],
+    normalized_weapon_data: Mapping[str, Any],
 ) -> str:
     """Compatibility API for Flask and scripts."""
     state = analyze_weapon_state(
-        raw_weapon_data
+        normalized_weapon_data
     )
 
     return format_analysis(
@@ -1604,9 +1599,12 @@ def main() -> None:
         "--input",
         type=Path,
         default=Path(
-            "weapon_test.json"
+            "data/normalized/weapon_test.json"
         ),
-        help="Weapon JSON file.",
+        help=(
+            "JSON file containing one normalized "
+            "weapon entry."
+        ),
     )
 
     parser.add_argument(
@@ -1643,9 +1641,7 @@ def main() -> None:
     )
 
     prepared = prepare_weapon_analysis(
-        dict(raw_data),
-        parser=parse_weapon_data,
-        interpreter=interpret_weapon,
+        dict(raw_data)
     )
 
     weapon_data = prepared[

@@ -10,23 +10,46 @@ from modules.logger import get_logger
 
 logger = get_logger(__name__)
 
-INTERPRETATION_VERSION = 3
+INTERPRETATION_VERSION = 4
+
+RANGED_CATEGORIES = {
+    "primary",
+    "secondary",
+    "companion",
+    "archgun",
+    "amp",
+    "special",
+}
+
+MELEE_CATEGORIES = {
+    "melee",
+    "archmelee",
+    "drifter_melee",
+}
 
 
-def _mapping(value: Any, name: str) -> Mapping[str, Any]:
+def _mapping(
+    value: Any,
+    name: str,
+) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise ValueError(f"Missing or invalid parsed section: {name}.")
+        raise ValueError(
+            f"Missing or invalid normalized section: {name}."
+        )
+
     return value
 
 
-def _optional_mapping(value: Any) -> Mapping[str, Any]:
-    if isinstance(value, Mapping):
-        return value
+def _optional_mapping(
+    value: Any,
+) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
-    return {}
 
-
-def _number(value: Any, default: float = 0.0) -> float:
+def _number(
+    value: Any,
+    default: float = 0.0,
+) -> float:
     if isinstance(value, bool):
         return default
 
@@ -34,6 +57,18 @@ def _number(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _optional_number(
+    value: Any,
+) -> float | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _present(value: Any) -> bool:
@@ -49,15 +84,59 @@ def _add_evidence(
         evidence.append(field)
 
 
+def _first_attack_mode(
+    weapon: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    modes = weapon.get("attack_modes")
+
+    if not isinstance(modes, list) or not modes:
+        raise ValueError(
+            "Normalized weapon requires at least one attack mode."
+        )
+
+    for mode in modes:
+        if isinstance(mode, Mapping):
+            return mode
+
+    raise ValueError(
+        "Normalized weapon contains no valid attack mode."
+    )
+
+
+def _damage_components(
+    mode: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    raw_components = mode.get("damage_components")
+
+    if not isinstance(raw_components, list):
+        return []
+
+    return [
+        component
+        for component in raw_components
+        if isinstance(component, Mapping)
+    ]
+
+
+def _compatibility_tags(
+    shared_stats: Mapping[str, Any],
+) -> set[str]:
+    raw_tags = shared_stats.get("compatibility_tags")
+
+    if not isinstance(raw_tags, list):
+        return set()
+
+    return {
+        str(tag).strip().lower()
+        for tag in raw_tags
+        if str(tag).strip()
+    }
+
+
 def _classify_critical_relationship(
     critical_chance: float,
     critical_multiplier: float,
 ) -> str:
-    """
-    Return a broad retrieval signal for the critical relationship.
-
-    These labels are retrieval signals rather than universal Warframe verdicts.
-    """
     if critical_chance >= 25.0 and critical_multiplier >= 2.0:
         return "aligned"
 
@@ -77,20 +156,15 @@ def _classify_critical_relationship(
 
 
 def _classify_application_frequency(
-    firing_mode: str,
+    trigger_type: str,
     fire_rate: float,
-    base_instances: float,
+    delivery_instances: float,
 ) -> str:
-    """
-    Describe how frequently the supplied attack pattern creates opportunities.
-
-    This function does not estimate hidden beam ticks.
-    """
-    if firing_mode == "continuous":
+    if trigger_type == "continuous":
         return "continuous"
 
-    if firing_mode == "automatic":
-        if fire_rate >= 10.0 or base_instances >= 3.0:
+    if trigger_type == "automatic":
+        if fire_rate >= 10.0 or delivery_instances >= 3.0:
             return "high"
 
         if fire_rate >= 4.0:
@@ -98,16 +172,16 @@ def _classify_application_frequency(
 
         return "low"
 
-    if firing_mode == "burst":
-        if base_instances >= 3.0:
+    if trigger_type == "burst":
+        if delivery_instances >= 3.0:
             return "high"
 
         return "moderate"
 
-    if base_instances >= 4.0:
+    if delivery_instances >= 4.0:
         return "high"
 
-    if base_instances >= 2.0:
+    if delivery_instances >= 2.0:
         return "moderate"
 
     return "low"
@@ -116,13 +190,8 @@ def _classify_application_frequency(
 def _classify_status_relationship(
     status_chance: float,
     application_frequency: str,
-    base_instances: float,
+    delivery_instances: float,
 ) -> str:
-    """
-    Estimate status relevance from chance and application pattern.
-
-    The result is a retrieval signal, not a final role decision.
-    """
     frequent_application = application_frequency in {
         "continuous",
         "high",
@@ -136,11 +205,11 @@ def _classify_status_relationship(
 
     if status_chance >= 12.0 and (
         frequent_application
-        or base_instances >= 3.0
+        or delivery_instances >= 3.0
     ):
         return "moderate"
 
-    if status_chance < 12.0 and base_instances >= 4.0:
+    if status_chance < 12.0 and delivery_instances >= 4.0:
         return "mixed"
 
     return "limited"
@@ -159,16 +228,9 @@ def _estimate_magazine_duration(
 def _classify_reload_friction(
     magazine_duration: float | None,
     reload_time: float,
-    reload_type: str,
 ) -> str:
     if reload_time <= 0.0:
         return "low"
-
-    if reload_type in {
-        "battery",
-        "shell_by_shell",
-    }:
-        return "special_reload"
 
     if magazine_duration is None:
         return "undetermined"
@@ -188,88 +250,92 @@ def _classify_reload_friction(
 
 
 def _infer_damage_behavior(
-    firing_mode: str,
+    trigger_type: str,
 ) -> str:
-    if firing_mode in {
+    if trigger_type in {
         "automatic",
         "continuous",
+        "active",
     }:
         return "sustained"
 
-    if firing_mode in {
+    if trigger_type in {
         "charge",
         "semi_automatic",
+        "duplex",
     }:
         return "focused"
 
-    if firing_mode == "burst":
+    if trigger_type == "burst":
         return "burst"
 
     return "general"
 
 
-def _infer_structured_multi_target_evidence(
-    classification: Mapping[str, Any],
-    stats: Mapping[str, Any],
-    conditional: Mapping[str, Any],
-    mechanics: Mapping[str, Any],
+def _infer_damage_delivery(
+    trigger_type: str,
+    tags: set[str],
+    components: list[Mapping[str, Any]],
+) -> str:
+    if "beam" in tags or trigger_type == "continuous":
+        return "beam"
+
+    component_types = {
+        str(component.get("component_type") or "")
+        for component in components
+    }
+
+    if any(
+        component_type.startswith("projectile")
+        or component_type.startswith("charged_projectile")
+        for component_type in component_types
+    ):
+        return "projectile"
+
+    return "direct"
+
+
+def _infer_multi_target_evidence(
+    tags: set[str],
+    components: list[Mapping[str, Any]],
 ) -> tuple[bool, list[str]]:
-    """
-    Detect multi-target evidence only from normalized structured fields.
-    """
     evidence: list[str] = []
 
-    is_explosive = bool(
-        classification.get("is_explosive")
-    )
+    if "aoe" in tags:
+        evidence.append(
+            "compatibility_tags.aoe"
+        )
 
-    explosion_radius = _number(
-        conditional.get("explosion_radius")
-    )
+    if "beam" in tags and "aoe" in tags:
+        evidence.append(
+            "compatibility_tags.beam"
+        )
 
-    punch_through = _number(
-        stats.get("punch_through")
-    )
+    radial_components = [
+        component
+        for component in components
+        if str(
+            component.get("component_type") or ""
+        ).endswith("_radial")
+    ]
 
-    has_chaining = bool(
-        mechanics.get("has_chaining")
-    )
-
-    chain_targets = _number(
-        mechanics.get("chain_targets")
-    )
-
-    if is_explosive:
-        evidence.append("is_explosive")
-
-    if explosion_radius > 0.0:
-        evidence.append("explosion_radius")
-
-    if punch_through > 0.0:
-        evidence.append("punch_through")
-
-    if has_chaining:
-        evidence.append("has_chaining")
-
-    if chain_targets > 0.0:
-        evidence.append("chain_targets")
+    if radial_components:
+        evidence.append(
+            "attack_modes.damage_components.radial"
+        )
 
     return bool(evidence), evidence
 
 
 def _infer_target_profile(
-    has_structured_multi_target_evidence: bool,
-    has_multiple_pellets: bool,
-    special_mechanic_present: bool,
+    multi_target: bool,
+    delivery_instances: float,
 ) -> str:
-    if has_structured_multi_target_evidence:
+    if multi_target:
         return "multi_target_capable"
 
-    if has_multiple_pellets:
+    if delivery_instances > 1.0:
         return "spread_delivery"
-
-    if special_mechanic_present:
-        return "special_mechanic_requires_review"
 
     return "single_target"
 
@@ -277,19 +343,7 @@ def _infer_target_profile(
 def _classify_ammo_consumption(
     fire_rate: float,
     magazine_duration: float | None,
-    ammo_capacity: float | None,
-    ammo_pickup: float | None,
-    ammo_cost_per_damage_tick: float | None,
 ) -> tuple[str, str]:
-    """
-    Return both a consumption-rate signal and an economy-confidence signal.
-
-    consumption_rate_signal describes how quickly the current attack pattern
-    may consume ammunition.
-
-    ammo_economy_signal describes whether the supplied reserve, pickup and cost
-    information is sufficient to assess long-duration ammunition pressure.
-    """
     if fire_rate <= 0.0:
         return "undetermined", "undetermined"
 
@@ -297,473 +351,261 @@ def _classify_ammo_consumption(
         magazine_duration is None
         or magazine_duration <= 10.0
     ):
-        consumption_rate_signal = "elevated"
+        consumption = "elevated"
     elif fire_rate >= 5.0:
-        consumption_rate_signal = "moderate"
+        consumption = "moderate"
     else:
-        consumption_rate_signal = "low"
+        consumption = "low"
 
-    has_complete_economy_data = all(
-        value is not None
-        for value in (
-            ammo_capacity,
-            ammo_pickup,
-            ammo_cost_per_damage_tick,
+    return consumption, "undetermined"
+
+
+def _mode_stat(
+    mode: Mapping[str, Any],
+    root_stats: Mapping[str, Any],
+    key: str,
+    *,
+    default: float = 0.0,
+) -> float:
+    if _present(mode.get(key)):
+        return _number(
+            mode.get(key),
+            default,
         )
+
+    return _number(
+        root_stats.get(key),
+        default,
     )
 
-    if not has_complete_economy_data:
-        return consumption_rate_signal, "undetermined"
 
-    assert ammo_capacity is not None
-    assert ammo_pickup is not None
-    assert ammo_cost_per_damage_tick is not None
-
-    if ammo_cost_per_damage_tick <= 0.0:
-        return consumption_rate_signal, "low"
-
-    recoverable_ticks = (
-        ammo_pickup / ammo_cost_per_damage_tick
-    )
-
-    reserve_ticks = (
-        ammo_capacity / ammo_cost_per_damage_tick
-    )
-
-    if recoverable_ticks >= 100.0 and reserve_ticks >= 1000.0:
-        economy_signal = "low"
-    elif recoverable_ticks >= 30.0:
-        economy_signal = "moderate"
-    else:
-        economy_signal = "elevated"
-
-    return consumption_rate_signal, economy_signal
-
-
-def _infer_mechanic_profile(
-    mechanics: Mapping[str, Any],
+def _interpret_ranged(
+    weapon: Mapping[str, Any],
 ) -> dict[str, Any]:
-    has_chaining = bool(
-        mechanics.get("has_chaining")
-    )
-
-    has_damage_ramp = bool(
-        mechanics.get("has_damage_ramp")
-    )
-
-    chain_targets = (
-        int(_number(mechanics.get("chain_targets")))
-        if _present(mechanics.get("chain_targets"))
-        else None
-    )
-
-    chain_range = (
-        _number(mechanics.get("chain_range"))
-        if _present(mechanics.get("chain_range"))
-        else None
-    )
-
-    chain_retention = (
-        _number(
-            mechanics.get(
-                "chain_damage_retention_percent"
-            )
-        )
-        if _present(
-            mechanics.get(
-                "chain_damage_retention_percent"
-            )
-        )
-        else None
-    )
-
-    return {
-        "has_chaining": has_chaining,
-        "chain_targets": chain_targets,
-        "chain_range": chain_range,
-        "chain_damage_retention_percent": (
-            chain_retention
-        ),
-        "has_damage_ramp": has_damage_ramp,
-    }
-
-
-def _infer_ranged_behavior(
-    parsed: Mapping[str, Any],
-) -> dict[str, Any]:
-    ranged = _mapping(
-        parsed.get("ranged"),
-        "ranged",
-    )
-
     classification = _mapping(
-        ranged.get("classification"),
-        "ranged.classification",
+        weapon.get("classification"),
+        "classification",
+    )
+    shared_stats = _mapping(
+        weapon.get("shared_stats"),
+        "shared_stats",
+    )
+    root_stats = _mapping(
+        weapon.get("root_stats"),
+        "root_stats",
+    )
+    mode = _first_attack_mode(
+        weapon
+    )
+    components = _damage_components(
+        mode
+    )
+    tags = _compatibility_tags(
+        shared_stats
     )
 
-    stats = _mapping(
-        ranged.get("stats"),
-        "ranged.stats",
+    category = str(
+        classification.get("category") or ""
+    )
+    weapon_class = classification.get(
+        "weapon_class"
     )
 
-    conditional = _optional_mapping(
-        ranged.get("conditional_stats")
+    trigger_type = str(
+        mode.get("trigger_type")
+        or shared_stats.get("trigger_type")
+        or ""
     )
 
-    mechanics = _optional_mapping(
-        parsed.get("mechanics")
+    fire_rate = _mode_stat(
+        mode,
+        root_stats,
+        "fire_rate",
     )
-
-    core = _mapping(
-        parsed.get("core_stats"),
-        "core_stats",
+    critical_chance = _mode_stat(
+        mode,
+        root_stats,
+        "critical_chance_percent",
     )
-
-    firing_mode = str(
-        classification.get("firing_mode") or ""
+    critical_multiplier = _mode_stat(
+        mode,
+        root_stats,
+        "critical_multiplier",
+        default=1.0,
     )
-
-    damage_delivery = str(
-        classification.get("damage_delivery") or ""
-    )
-
-    reload_type = str(
-        classification.get("reload_type")
-        or "magazine"
-    )
-
-    has_multiple_pellets = bool(
-        classification.get("has_multiple_pellets")
-    )
-
-    fire_rate = _number(
-        stats.get("fire_rate")
+    status_chance = _mode_stat(
+        mode,
+        root_stats,
+        "status_chance_percent",
     )
 
     multishot = max(
         _number(
-            stats.get("multishot"),
+            shared_stats.get("multishot"),
             1.0,
         ),
         0.01,
     )
-
-    magazine_size = _number(
-        stats.get("magazine_size")
-    )
-
-    reload_time = _number(
-        stats.get("reload_time")
-    )
-
-    ammo_capacity = (
-        _number(stats.get("ammo_capacity"))
-        if _present(stats.get("ammo_capacity"))
-        else None
-    )
-
-    ammo_pickup = (
-        _number(stats.get("ammo_pickup"))
-        if _present(stats.get("ammo_pickup"))
-        else None
-    )
-
-    ammo_cost_per_damage_tick = (
+    fire_iterations = max(
         _number(
-            stats.get("ammo_cost_per_damage_tick")
-        )
-        if _present(
-            stats.get("ammo_cost_per_damage_tick")
-        )
-        else None
-    )
-
-    pellet_count = (
-        max(
-            _number(
-                conditional.get("pellet_count"),
-                1.0,
-            ),
+            mode.get("fire_iterations"),
             1.0,
-        )
-        if has_multiple_pellets
-        else 1.0
-    )
-
-    burst_count = (
-        max(
-            _number(
-                conditional.get("shots_per_burst"),
-                1.0,
-            ),
-            1.0,
-        )
-        if firing_mode == "burst"
-        else 1.0
-    )
-
-    base_instances = (
-        multishot
-        * pellet_count
-        * burst_count
-    )
-
-    critical_chance = _number(
-        core.get("critical_chance_percent")
-    )
-
-    critical_multiplier = _number(
-        core.get("critical_multiplier"),
+        ),
         1.0,
     )
-
-    status_chance = _number(
-        core.get("status_chance_percent")
+    delivery_instances = (
+        multishot * fire_iterations
     )
 
+    magazine_size = _number(
+        shared_stats.get("magazine_size")
+    )
+    reload_time = _number(
+        shared_stats.get("reload_time")
+    )
     magazine_duration = _estimate_magazine_duration(
         magazine_size,
         fire_rate,
     )
 
-    application_frequency = (
-        _classify_application_frequency(
-            firing_mode,
-            fire_rate,
-            base_instances,
-        )
+    application_frequency = _classify_application_frequency(
+        trigger_type,
+        fire_rate,
+        delivery_instances,
     )
 
-    (
-        structured_multi_target,
-        multi_target_evidence,
-    ) = _infer_structured_multi_target_evidence(
-        classification,
-        stats,
-        conditional,
-        mechanics,
+    multi_target, target_evidence = _infer_multi_target_evidence(
+        tags,
+        components,
     )
-
-    special_mechanic_present = bool(
-        parsed.get("special_mechanic")
-    )
-
     target_profile = _infer_target_profile(
-        structured_multi_target,
-        has_multiple_pellets,
-        special_mechanic_present,
+        multi_target,
+        delivery_instances,
     )
 
-    (
-        consumption_rate_signal,
-        ammo_economy_signal,
-    ) = _classify_ammo_consumption(
+    consumption_rate, ammo_economy = _classify_ammo_consumption(
         fire_rate,
         magazine_duration,
-        ammo_capacity,
-        ammo_pickup,
-        ammo_cost_per_damage_tick,
     )
 
-    mechanic_profile = _infer_mechanic_profile(
-        mechanics
+    damage_delivery = _infer_damage_delivery(
+        trigger_type,
+        tags,
+        components,
     )
 
     critical_evidence: list[str] = []
     _add_evidence(
         critical_evidence,
-        "critical_chance_percent",
-        core.get("critical_chance_percent"),
+        "root_stats.critical_chance_percent",
+        root_stats.get("critical_chance_percent"),
     )
     _add_evidence(
         critical_evidence,
-        "critical_multiplier",
-        core.get("critical_multiplier"),
+        "root_stats.critical_multiplier",
+        root_stats.get("critical_multiplier"),
     )
 
     status_evidence: list[str] = []
     _add_evidence(
         status_evidence,
-        "status_chance_percent",
-        core.get("status_chance_percent"),
+        "root_stats.status_chance_percent",
+        root_stats.get("status_chance_percent"),
     )
     _add_evidence(
         status_evidence,
-        "fire_rate",
-        stats.get("fire_rate"),
+        "root_stats.fire_rate",
+        root_stats.get("fire_rate"),
     )
     _add_evidence(
         status_evidence,
-        "multishot",
-        stats.get("multishot"),
+        "shared_stats.multishot",
+        shared_stats.get("multishot"),
     )
     _add_evidence(
         status_evidence,
-        "pellet_count",
-        conditional.get("pellet_count"),
+        "attack_modes.fire_iterations",
+        mode.get("fire_iterations"),
     )
     _add_evidence(
         status_evidence,
-        "shots_per_burst",
-        conditional.get("shots_per_burst"),
-    )
-    _add_evidence(
-        status_evidence,
-        "firing_mode",
-        classification.get("firing_mode"),
+        "attack_modes.trigger_type",
+        mode.get("trigger_type"),
     )
 
     reload_evidence: list[str] = []
     _add_evidence(
         reload_evidence,
-        "fire_rate",
-        stats.get("fire_rate"),
+        "shared_stats.magazine_size",
+        shared_stats.get("magazine_size"),
     )
     _add_evidence(
         reload_evidence,
-        "magazine_size",
-        stats.get("magazine_size"),
+        "shared_stats.reload_time",
+        shared_stats.get("reload_time"),
     )
     _add_evidence(
         reload_evidence,
-        "reload_time",
-        stats.get("reload_time"),
+        "root_stats.fire_rate",
+        root_stats.get("fire_rate"),
     )
-    _add_evidence(
-        reload_evidence,
-        "reload_type",
-        classification.get("reload_type"),
-    )
-
-    target_evidence = list(
-        multi_target_evidence
-    )
-
-    if has_multiple_pellets:
-        target_evidence.append(
-            "has_multiple_pellets"
-        )
-
-    if special_mechanic_present:
-        target_evidence.append(
-            "special_mechanic"
-        )
 
     ammo_evidence: list[str] = []
     _add_evidence(
         ammo_evidence,
-        "fire_rate",
-        stats.get("fire_rate"),
+        "root_stats.fire_rate",
+        root_stats.get("fire_rate"),
     )
     _add_evidence(
         ammo_evidence,
-        "magazine_size",
-        stats.get("magazine_size"),
-    )
-    _add_evidence(
-        ammo_evidence,
-        "ammo_capacity",
-        stats.get("ammo_capacity"),
-    )
-    _add_evidence(
-        ammo_evidence,
-        "ammo_pickup",
-        stats.get("ammo_pickup"),
-    )
-    _add_evidence(
-        ammo_evidence,
-        "ammo_cost_per_damage_tick",
-        stats.get("ammo_cost_per_damage_tick"),
-    )
-
-    mechanics_evidence: list[str] = []
-    _add_evidence(
-        mechanics_evidence,
-        "has_chaining",
-        mechanics.get("has_chaining"),
-    )
-    _add_evidence(
-        mechanics_evidence,
-        "chain_targets",
-        mechanics.get("chain_targets"),
-    )
-    _add_evidence(
-        mechanics_evidence,
-        "chain_range",
-        mechanics.get("chain_range"),
-    )
-    _add_evidence(
-        mechanics_evidence,
-        "chain_damage_retention_percent",
-        mechanics.get(
-            "chain_damage_retention_percent"
-        ),
-    )
-    _add_evidence(
-        mechanics_evidence,
-        "has_damage_ramp",
-        mechanics.get("has_damage_ramp"),
+        "shared_stats.magazine_size",
+        shared_stats.get("magazine_size"),
     )
 
     return {
-        "interpretation_version": (
-            INTERPRETATION_VERSION
-        ),
-        "weapon_category": (
-            parsed.get("weapon_category")
-        ),
-        "weapon_class": (
-            parsed.get("weapon_class")
-        ),
-        "attack_behavior": firing_mode,
+        "interpretation_version": INTERPRETATION_VERSION,
+        "weapon_category": category,
+        "weapon_class": weapon_class,
+        "attack_behavior": trigger_type or "unknown",
         "damage_delivery": damage_delivery,
-        "damage_behavior": (
-            _infer_damage_behavior(firing_mode)
+        "damage_behavior": _infer_damage_behavior(
+            trigger_type
         ),
-        "critical_relationship": (
-            _classify_critical_relationship(
-                critical_chance,
-                critical_multiplier,
-            )
+        "critical_relationship": _classify_critical_relationship(
+            critical_chance,
+            critical_multiplier,
         ),
-        "status_relationship": (
-            _classify_status_relationship(
-                status_chance,
-                application_frequency,
-                base_instances,
-            )
+        "status_relationship": _classify_status_relationship(
+            status_chance,
+            application_frequency,
+            delivery_instances,
         ),
-        "application_frequency": (
-            application_frequency
-        ),
+        "application_frequency": application_frequency,
         "continuous_application": (
-            firing_mode == "continuous"
+            trigger_type == "continuous"
         ),
-        "reload_friction": (
-            _classify_reload_friction(
-                magazine_duration,
-                reload_time,
-                reload_type,
-            )
+        "reload_friction": _classify_reload_friction(
+            magazine_duration,
+            reload_time,
         ),
-        "consumption_rate_signal": (
-            consumption_rate_signal
-        ),
-        "ammo_economy_signal": (
-            ammo_economy_signal
-        ),
+        "consumption_rate_signal": consumption_rate,
+        "ammo_economy_signal": ammo_economy,
         "target_profile": target_profile,
-        "has_structured_multi_target_evidence": (
-            structured_multi_target
-        ),
-        "special_mechanic_present": (
-            special_mechanic_present
-        ),
-        "mechanic_profile": (
-            mechanic_profile
-        ),
+        "has_structured_multi_target_evidence": multi_target,
+        "special_mechanic_present": multi_target,
+        "mechanic_profile": {
+            "has_area_delivery": multi_target,
+            "has_radial_component": any(
+                str(
+                    component.get("component_type") or ""
+                ).endswith("_radial")
+                for component in components
+            ),
+            "has_beam_tag": "beam" in tags,
+            "has_aoe_tag": "aoe" in tags,
+        },
         "base_instances_per_delivery": round(
-            base_instances,
+            delivery_instances,
             3,
         ),
         "estimated_magazine_duration_seconds": (
@@ -774,81 +616,79 @@ def _infer_ranged_behavior(
             if magazine_duration is not None
             else None
         ),
+        "attack_mode_count": len(
+            weapon.get("attack_modes", [])
+        ),
         "evidence": {
-            "critical_relationship": (
-                critical_evidence
-            ),
-            "status_relationship": (
-                status_evidence
-            ),
-            "reload_friction": (
-                reload_evidence
-            ),
-            "ammo_economy_signal": (
-                ammo_evidence
-            ),
-            "target_profile": (
-                target_evidence
-            ),
-            "mechanic_profile": (
-                mechanics_evidence
-            ),
+            "critical_relationship": critical_evidence,
+            "status_relationship": status_evidence,
+            "reload_friction": reload_evidence,
+            "ammo_economy_signal": ammo_evidence,
+            "target_profile": target_evidence,
+            "mechanic_profile": target_evidence,
         },
     }
 
 
-def _infer_melee_behavior(
-    parsed: Mapping[str, Any],
+def _interpret_melee(
+    weapon: Mapping[str, Any],
 ) -> dict[str, Any]:
-    melee = _mapping(
-        parsed.get("melee"),
-        "melee",
+    classification = _mapping(
+        weapon.get("classification"),
+        "classification",
+    )
+    shared_stats = _mapping(
+        weapon.get("shared_stats"),
+        "shared_stats",
+    )
+    root_stats = _mapping(
+        weapon.get("root_stats"),
+        "root_stats",
+    )
+    mode = _first_attack_mode(
+        weapon
     )
 
-    stats = _mapping(
-        melee.get("stats"),
-        "melee.stats",
+    category = str(
+        classification.get("category") or ""
+    )
+    weapon_class = classification.get(
+        "weapon_class"
     )
 
-    core = _mapping(
-        parsed.get("core_stats"),
-        "core_stats",
+    attack_speed = _mode_stat(
+        mode,
+        root_stats,
+        "fire_rate",
     )
-
-    mechanics = _optional_mapping(
-        parsed.get("mechanics")
-    )
-
-    attack_speed = _number(
-        stats.get("attack_speed")
-    )
-
     melee_range = _number(
-        stats.get("range")
+        shared_stats.get("range")
     )
-
     heavy_damage = _number(
-        stats.get("heavy_attack_damage")
+        shared_stats.get("heavy_attack_damage")
     )
-
     heavy_wind_up = _number(
-        stats.get("heavy_attack_wind_up")
+        shared_stats.get("heavy_attack_wind_up")
     )
 
-    critical_chance = _number(
-        core.get("critical_chance_percent")
+    critical_chance = _mode_stat(
+        mode,
+        root_stats,
+        "critical_chance_percent",
+    )
+    critical_multiplier = _mode_stat(
+        mode,
+        root_stats,
+        "critical_multiplier",
+        default=1.0,
+    )
+    status_chance = _mode_stat(
+        mode,
+        root_stats,
+        "status_chance_percent",
     )
 
-    critical_multiplier = _number(
-        core.get("critical_multiplier"),
-        1.0,
-    )
-
-    status_chance = _number(
-        core.get("status_chance_percent")
-    )
-
-    if heavy_damage > 0.0 and heavy_wind_up > 0.0:
+    if heavy_damage > 0.0:
         damage_behavior = "heavy_attacks"
     elif attack_speed >= 1.0:
         damage_behavior = "sustained_melee"
@@ -857,27 +697,13 @@ def _infer_melee_behavior(
 
     if heavy_wind_up >= 1.0:
         handling_friction = "high"
-    elif heavy_wind_up > 0.0 or attack_speed < 0.9:
+    elif heavy_wind_up > 0.0 or (
+        attack_speed > 0.0
+        and attack_speed < 0.9
+    ):
         handling_friction = "moderate"
     else:
         handling_friction = "low"
-
-    special_mechanic_present = bool(
-        parsed.get("special_mechanic")
-    )
-
-    has_chaining = bool(
-        mechanics.get("has_chaining")
-    )
-
-    if melee_range >= 3.0 or has_chaining:
-        target_profile = "multi_target_capable"
-    elif special_mechanic_present:
-        target_profile = (
-            "special_mechanic_requires_review"
-        )
-    else:
-        target_profile = "close_range"
 
     application_frequency = (
         "high"
@@ -887,187 +713,158 @@ def _infer_melee_behavior(
         else "low"
     )
 
+    multi_target = melee_range >= 3.0
+
     critical_evidence: list[str] = []
     _add_evidence(
         critical_evidence,
-        "critical_chance_percent",
-        core.get("critical_chance_percent"),
+        "root_stats.critical_chance_percent",
+        root_stats.get("critical_chance_percent"),
     )
     _add_evidence(
         critical_evidence,
-        "critical_multiplier",
-        core.get("critical_multiplier"),
+        "root_stats.critical_multiplier",
+        root_stats.get("critical_multiplier"),
     )
 
     status_evidence: list[str] = []
     _add_evidence(
         status_evidence,
-        "status_chance_percent",
-        core.get("status_chance_percent"),
+        "root_stats.status_chance_percent",
+        root_stats.get("status_chance_percent"),
     )
     _add_evidence(
         status_evidence,
-        "attack_speed",
-        stats.get("attack_speed"),
+        "root_stats.fire_rate",
+        root_stats.get("fire_rate"),
     )
 
     handling_evidence: list[str] = []
     _add_evidence(
         handling_evidence,
-        "attack_speed",
-        stats.get("attack_speed"),
+        "root_stats.fire_rate",
+        root_stats.get("fire_rate"),
     )
     _add_evidence(
         handling_evidence,
-        "heavy_attack_wind_up",
-        stats.get("heavy_attack_wind_up"),
+        "shared_stats.heavy_attack_wind_up",
+        shared_stats.get("heavy_attack_wind_up"),
     )
 
     target_evidence: list[str] = []
     _add_evidence(
         target_evidence,
-        "range",
-        stats.get("range"),
+        "shared_stats.range",
+        shared_stats.get("range"),
     )
-    _add_evidence(
-        target_evidence,
-        "has_chaining",
-        mechanics.get("has_chaining"),
-    )
-    _add_evidence(
-        target_evidence,
-        "chain_targets",
-        mechanics.get("chain_targets"),
-    )
-
-    if special_mechanic_present:
-        target_evidence.append(
-            "special_mechanic"
-        )
 
     return {
-        "interpretation_version": (
-            INTERPRETATION_VERSION
-        ),
-        "weapon_category": "melee",
-        "weapon_class": (
-            parsed.get("weapon_class")
-        ),
+        "interpretation_version": INTERPRETATION_VERSION,
+        "weapon_category": category,
+        "weapon_class": weapon_class,
         "attack_behavior": damage_behavior,
         "damage_behavior": damage_behavior,
-        "critical_relationship": (
-            _classify_critical_relationship(
-                critical_chance,
-                critical_multiplier,
-            )
+        "critical_relationship": _classify_critical_relationship(
+            critical_chance,
+            critical_multiplier,
         ),
-        "status_relationship": (
-            _classify_status_relationship(
-                status_chance,
-                application_frequency,
-                max(attack_speed, 1.0),
-            )
+        "status_relationship": _classify_status_relationship(
+            status_chance,
+            application_frequency,
+            max(attack_speed, 1.0),
         ),
-        "application_frequency": (
-            application_frequency
-        ),
+        "application_frequency": application_frequency,
+        "continuous_application": False,
         "reload_friction": "not_applicable",
-        "handling_friction": (
-            handling_friction
+        "handling_friction": handling_friction,
+        "consumption_rate_signal": "not_applicable",
+        "ammo_economy_signal": "not_applicable",
+        "target_profile": (
+            "multi_target_capable"
+            if multi_target
+            else "close_range"
         ),
-        "target_profile": target_profile,
-        "has_structured_multi_target_evidence": (
-            melee_range >= 3.0
-            or has_chaining
-        ),
-        "special_mechanic_present": (
-            special_mechanic_present
-        ),
-        "mechanic_profile": (
-            _infer_mechanic_profile(mechanics)
+        "has_structured_multi_target_evidence": multi_target,
+        "special_mechanic_present": False,
+        "mechanic_profile": {
+            "has_area_delivery": multi_target,
+            "has_radial_component": False,
+            "has_beam_tag": False,
+            "has_aoe_tag": False,
+        },
+        "base_instances_per_delivery": 1.0,
+        "estimated_magazine_duration_seconds": None,
+        "attack_mode_count": len(
+            weapon.get("attack_modes", [])
         ),
         "evidence": {
-            "critical_relationship": (
-                critical_evidence
-            ),
-            "status_relationship": (
-                status_evidence
-            ),
-            "handling_friction": (
-                handling_evidence
-            ),
-            "target_profile": (
-                target_evidence
-            ),
+            "critical_relationship": critical_evidence,
+            "status_relationship": status_evidence,
+            "handling_friction": handling_evidence,
+            "target_profile": target_evidence,
+            "mechanic_profile": target_evidence,
         },
     }
 
 
 def interpret_weapon(
-    parsed_weapon: Mapping[str, Any],
+    normalized_weapon: Mapping[str, Any],
 ) -> dict[str, Any]:
     """
-    Convert normalized weapon data into deterministic retrieval signals.
+    Convert one weapon_database.py entry into deterministic retrieval signals.
 
-    The returned labels are auditable retrieval signals and not final verdicts.
+    The returned labels support rule selection and prompt construction. They
+    are auditable signals, not final weapon verdicts.
     """
-    if not isinstance(parsed_weapon, Mapping):
+    if not isinstance(
+        normalized_weapon,
+        Mapping,
+    ):
         raise TypeError(
-            "parsed_weapon must be a Mapping."
+            "normalized_weapon must be a Mapping."
         )
 
-    category = parsed_weapon.get(
-        "weapon_category"
+    classification = _mapping(
+        normalized_weapon.get("classification"),
+        "classification",
+    )
+    category = str(
+        classification.get("category") or ""
     )
 
     logger.info(
         "Starting deterministic weapon interpretation "
-        "| category=%s",
+        "| weapon=%s | category=%s",
+        normalized_weapon.get("display_name"),
         category,
     )
 
-    if category in {
-        "primary",
-        "secondary",
-    }:
-        interpretation = _infer_ranged_behavior(
-            parsed_weapon
+    if category in RANGED_CATEGORIES:
+        interpretation = _interpret_ranged(
+            normalized_weapon
         )
-
-    elif category == "melee":
-        interpretation = _infer_melee_behavior(
-            parsed_weapon
+    elif category in MELEE_CATEGORIES:
+        interpretation = _interpret_melee(
+            normalized_weapon
         )
-
     else:
         raise ValueError(
-            f"Unsupported weapon category: {category}"
+            f"Unsupported normalized weapon category: {category}"
         )
 
     logger.info(
         "Weapon interpretation completed "
         "| critical=%s | status=%s "
         "| behavior=%s | target=%s "
-        "| ammo_economy=%s",
-        interpretation.get(
-            "critical_relationship"
-        ),
-        interpretation.get(
-            "status_relationship"
-        ),
-        interpretation.get(
-            "damage_behavior"
-        ),
-        interpretation.get(
-            "target_profile"
-        ),
-        interpretation.get(
-            "ammo_economy_signal"
-        ),
+        "| reload=%s",
+        interpretation.get("critical_relationship"),
+        interpretation.get("status_relationship"),
+        interpretation.get("damage_behavior"),
+        interpretation.get("target_profile"),
+        interpretation.get("reload_friction"),
     )
 
     return interpretation
 
 
-# Compatibility alias.
 analyze_parsed_weapon = interpret_weapon
