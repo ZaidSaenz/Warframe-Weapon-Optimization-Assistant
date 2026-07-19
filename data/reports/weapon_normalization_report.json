@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-19T16:31:28.969368+00:00",
+  "source_file": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/raw/ExportWeapons.json",
+  "dictionary_file": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/raw/dict.en.json",
+  "output_file": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/normalized/weapons.json",
+  "weapon_count": 843,
+  "eligible_weapon_count": 656,
+  "excluded_entry_count": 187,
+  "excluded_by_reason": {
+    "modular_or_equipment_component": 171,
+    "insufficient_weapon_statistics": 7,
+    "reward_or_non_weapon_item": 6,
+    "no_usable_weapon_data": 3
+  },
+  "excluded_examples": [
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenA",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterAntigenA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenB",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterAntigenB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenC",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterAntigenC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenD",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterAntigenD",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenA",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterMutagenA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenB",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterMutagenB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenC",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterMutagenC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenD",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterMutagenD",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenA",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorAntigenA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenB",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorAntigenB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenC",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorAntigenC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenD",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorAntigenD",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenA",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorMutagenA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenB",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorMutagenB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenC",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorMutagenC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenD",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedPredatorMutagenD",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MeleeMoaPetEngine",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetEngineMelee",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MeleeMoaPetPayload",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadMelee",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArcotek",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetEngineArcotek",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineKrisys",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetEngineKrisys",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineThricore",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetEngineThricore",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetHeadLambeo",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadMelee",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetHeadMelee",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadOloro",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetHeadOloro",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetHeadParaMoa",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegA",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetLegA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegB",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetLegB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegC",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetLegC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegD",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetLegD",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegMelee",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetLegMelee",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadAegron",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadAegron",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadCryoxion",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadCryoxion",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadDarta",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadDartra",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadHextra",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadHextra",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadMunitron",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadMunitron",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadTazron",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadTazron",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadThermocor",
+      "name_key": "/Lotus/Language/SolarisVenus/MoaPetPayloadThermocor",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyA",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetBodyA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyB",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetBodyB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyC",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetBodyC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadA",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetHeadA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadB",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetHeadB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadC",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetHeadC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsA",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetLegsA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsB",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetLegsB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsC",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetLegsC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailA",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetTailA",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailB",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetTailB",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailC",
+      "name_key": "/Lotus/Language/Pets/ZanukaPetTailC",
+      "reason": "modular_or_equipment_component"
+    },
+    {
+      "weapon_id": "/Lotus/Types/Items/Deimos/WoundedInfestedCritterCommonRewardItem",
+      "name_key": "/Lotus/Language/InfestedMicroplanet/InfestedCritterCommonName",
+      "reason": "reward_or_non_weapon_item"
+    }
+  ],
+  "normalized_weapon_count": 656,
+  "complete": 646,
+  "partial": 2,
+  "fallback": 8,
+  "failed": 0,
+  "deduplicated_modes": 6,
+  "resolved_display_names": 656,
+  "missing_display_names": 0,
+  "unknown_damage_types": {},
+  "unknown_root_damage_indexes": {
+    "19": 2
+  },
+  "unknown_behaviour_fields": {},
+  "unknown_projectile_fields": {
+    "embedDeathAttack": 68
+  },
+  "failures": []
+}
