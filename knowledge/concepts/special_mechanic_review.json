@@ -1,20 +1,87 @@
 {
   "id": "special_mechanic_review",
   "title": "Special mechanic review",
+  "signal_fields": [
+    "special_mechanic_records"
+  ],
   "related_stats": [
-    "special_mechanic"
+    "mechanic_id",
+    "mechanic_type",
+    "mechanic_evidence",
+    "mechanic_activation",
+    "mechanic_effect",
+    "affected_mode_ids",
+    "affected_component_ids",
+    "activation_conditions",
+    "mechanic_restrictions",
+    "baseline_attack_pattern"
+  ],
+  "derived_signals": [
+    "mechanic_evidence_confidence",
+    "mechanic_availability",
+    "mechanic_practical_effects",
+    "mechanic_pattern_relevance",
+    "mechanical_distinctiveness",
+    "combined_mechanic_profile"
   ],
   "principles": [
-    "A supplied special mechanic may refine the weapon's role, but every conclusion must be traceable to the explicit mechanic text.",
-    "Describe the mechanic directly without converting it into an unsupported statistic or improvement parameter.",
-    "Do not recommend changing the special mechanic itself; recommend only allowed statistics that reinforce its demonstrated function or correct supported friction.",
-    "Distinguish damage ramp from charge behavior, chaining from radial damage, and secondary targets from the primary target.",
-    "When a mechanic includes target count, range, decay, duration, or activation conditions, preserve those distinctions.",
-    "If the mechanic is ambiguous, prefer a cautious description and avoid deterministic claims."
+    "A special mechanic must be evaluated from explicit and traceable mechanical evidence.",
+    "Each mechanic must preserve its activation, affected modes or components, practical effects, conditions, and restrictions.",
+    "Mechanical distinctiveness describes how strongly a mechanic changes decisions, interactions, or attack sequencing relative to a supplied baseline attack pattern.",
+    "Distinctiveness, effectiveness, operational comfort, and subjective enjoyment are separate properties and must not be treated as interchangeable.",
+    "A mechanic may provide benefits, impose costs, or create a mixed tradeoff; its existence must not automatically be described as a strength.",
+    "Quantitative properties must remain associated with the specific mechanic and must not be invented or generalized to unrelated mechanic types.",
+    "Detailed behavior must be delegated to a specialized concept when one exists, while this concept retains only the mechanic's practical and identity-level significance."
   ],
+  "interpretation": {
+    "defining": [
+      "The mechanic substantially changes the weapon's normal attack pattern, decision-making, or interaction model.",
+      "It should be prominent in the weapon summary while preserving its conditions, restrictions, and tradeoffs."
+    ],
+    "supporting": [
+      "The mechanic adds a meaningful secondary behavior or option without replacing the baseline attack pattern.",
+      "Its contribution must remain associated with the modes and conditions that activate it."
+    ],
+    "minor": [
+      "The mechanic is explicit but has limited influence on normal operation or decision-making.",
+      "It may contribute identity without materially defining the practical attack pattern."
+    ],
+    "undetermined": [
+      "The mechanic is identified, but its activation, effect, baseline difference, or practical relevance is insufficiently defined.",
+      "Do not assign a relevance level from novelty or descriptive emphasis alone."
+    ]
+  },
+  "conditional_exceptions": {
+    "conditional_mechanic": [
+      "Preserve the activation condition and classify relevance separately from availability.",
+      "A conditional mechanic may still be defining, supporting, or minor."
+    ],
+    "specialized_mechanic_available": [
+      "Delegate detailed mechanical interpretation to the corresponding specialized concept.",
+      "Retain only a concise summary of how the mechanic changes the practical attack pattern."
+    ],
+    "multiple_special_mechanics": [
+      "Evaluate every mechanic independently before describing their combined behavior.",
+      "Do not assume that their effects are additive, simultaneous, or mutually compatible."
+    ],
+    "mode_specific_mechanic": [
+      "Associate the mechanic only with the modes and components that supply its evidence.",
+      "Do not generalize it to the complete weapon."
+    ],
+    "description_only_evidence": [
+      "Preserve the mechanic as sourced qualitative evidence with its confidence and scope.",
+      "Do not invent quantitative implementation details or promote it to normalized data silently."
+    ],
+    "no_baseline_pattern": [
+      "Describe the mechanic directly without assigning mechanical distinctiveness.",
+      "Distinctiveness cannot be determined reliably without a defined comparison pattern."
+    ]
+  },
   "exceptions": [
-    "Do not infer mechanics from the weapon name.",
-    "Do not assume every special mechanic creates multi-target or area behavior.",
-    "Do not invent hidden scaling, activation conditions, or external synergies."
+    "Do not infer mechanics from the weapon name, appearance, theme, or promotional language.",
+    "Do not infer hidden scaling, target limits, activation conditions, or external synergies.",
+    "Do not assume that a special mechanic creates multi-target, radial, control, status, or damage benefits unless explicitly supported.",
+    "Do not let a secondary mechanic overwrite the weapon's baseline behavior or primary job.",
+    "Do not classify a weapon as objectively fun, boring, complex, effective, or powerful from mechanical distinctiveness alone."
   ]
 }

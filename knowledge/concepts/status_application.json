@@ -1,51 +1,84 @@
 {
   "id": "status_application",
-  "title": "Status application",
-  "related_stats": [
+  "title": "Status application profile",
+  "signal_fields": [
+    "status_application_scope",
     "status_chance",
-    "fire_rate",
-    "multishot",
-    "pellet_count",
-    "accuracy",
-    "magazine_size",
-    "reload_time",
-    "application_frequency"
+    "eligible_status_opportunity_profile"
+  ],
+  "related_stats": [
+    "status_opportunities_per_attack_event",
+    "status_opportunity_frequency",
+    "contact_validity_evidence",
+    "status_comparison_context",
+    "status_profile_condition"
+  ],
+  "derived_signals": [
+    "guaranteed_status_effects_per_eligible_instance",
+    "next_status_effect_chance",
+    "mechanical_status_opportunity_rate",
+    "contact_adjusted_status_opportunities",
+    "status_application_relationship"
   ],
   "principles": [
-    "Status application depends on both status chance and the number of valid damage instances that can independently apply status.",
-    "Application frequency, multishot, pellet count, beam ticks, and repeated attacks may create more status opportunities, but only valid hits contribute in practice.",
-    "Status chance alone should not define the weapon's primary role; repeated applications must support the complete attack pattern.",
-    "Multishot creates additional projectiles or damage instances that may roll status independently; it does not directly increase the status chance of an existing projectile.",
-    "Innate pellet count creates more possible status rolls per trigger pull, but only pellets that connect contribute to practical status application.",
-    "Fire rate can increase status opportunities per second, but its practical value depends on magazine size, reload time, ammunition economy, and target contact.",
-    "High pellet count with low per-pellet status chance should not be treated as reliable when spread or accuracy prevents most pellets from connecting.",
-    "A weapon with fewer instances and higher status chance may apply effects more consistently per hit, while many instances may create more total applications when they connect.",
-    "Status chance above 100 percent can produce additional effects from the same eligible damage instance and should not be treated as wasted probability.",
-    "Direct hits, radial damage, beam ticks, chained damage, and other secondary events may use independent statistics or restrictions.",
-    "Do not estimate practical status output by multiplying status chance, fire rate, multishot, and pellet count without accounting for hit consistency, downtime, and mechanics.",
-    "Only discuss accuracy, spread, recoil, or target-contact limitations when those fields or mechanics are explicitly supplied."
+    "Status application depends on the status probability of each eligible damage instance and the frequency at which eligible instances occur.",
+    "Status probability, opportunities per attack event, and opportunity frequency are distinct properties and must not be treated as interchangeable.",
+    "Status chance and opportunity signals must refer to the same attack mode, damage component, and conditional state.",
+    "Only instances explicitly eligible to produce status effects may contribute to the status opportunity profile.",
+    "Mechanical status opportunities must remain separate from contact-adjusted opportunities unless valid-contact evidence is explicitly supplied.",
+    "Qualitative status classifications require an explicit comparison context and must not rely on universal thresholds.",
+    "A favorable status application profile does not establish the usefulness, type distribution, stack behavior, or primary function of the resulting status effects."
   ],
   "interpretation": {
     "aligned": [
-      "Status chance and application frequency reinforce one another.",
-      "Repeated valid damage instances provide meaningful evidence for recurring application."
+      "Status probability and eligible opportunity frequency are both favorable within the supplied comparison context.",
+      "The evaluated scope supports recurring status application."
     ],
-    "moderate": [
-      "Status application can contribute consistently but does not necessarily define the primary role.",
-      "The supplied data supports a secondary or hybrid contribution."
+    "frequency_weighted": [
+      "The evaluated scope produces frequent eligible opportunities with comparatively limited status probability per instance.",
+      "Recurring application depends strongly on the number of valid opportunities."
     ],
-    "mixed": [
-      "The weapon creates many opportunities with limited chance per instance, or favorable chance with limited frequency.",
-      "Practical performance depends strongly on valid contact."
+    "probability_weighted": [
+      "The evaluated scope has favorable status probability but comparatively limited eligible opportunity frequency.",
+      "Applications may be reliable per valid instance without occurring frequently over time."
     ],
     "limited": [
-      "The supplied data provides limited evidence for dependable status application.",
-      "Status may remain incidental."
+      "Neither status probability nor eligible opportunity frequency is favorable within the supplied comparison context.",
+      "The supplied relationship provides limited evidence for recurring status application."
+    ],
+    "undetermined": [
+      "Status probability, opportunity eligibility, opportunity frequency, scope alignment, or comparison context is insufficiently defined.",
+      "The status application relationship cannot be classified confidently."
+    ]
+  },
+  "conditional_exceptions": {
+    "status_chance_at_or_above_100_percent": [
+      "Each complete 100 percent guarantees one status effect from an eligible damage instance.",
+      "The remaining percentage determines the chance of one additional status effect.",
+      "Do not infer which status types are selected without explicit damage-weighting or status-distribution evidence."
+    ],
+    "multiple_eligible_instances": [
+      "Use the normalized eligible-instance profile supplied by multi-instance analysis.",
+      "Do not recount pellets, multishot, ticks, or components independently within this concept."
+    ],
+    "contact_validity_supplied": [
+      "Adjust mechanical opportunities only with explicit contact-validity evidence associated with the same mode and component.",
+      "Do not infer practical contact from accuracy, spread, projectile, or beam labels alone."
+    ],
+    "multiple_damage_components": [
+      "Preserve separate status probabilities, eligibility rules, and opportunity frequencies for every component.",
+      "Do not combine them into one aggregate profile unless the aggregation method and component relationships are explicitly defined."
+    ],
+    "conditional_status_profile": [
+      "Preserve the activation condition and evaluate conditional status values separately from the base profile.",
+      "Do not describe conditional probability or eligibility as permanently active."
     ]
   },
   "exceptions": [
-    "Do not assume beam tick frequency when it is not supplied.",
-    "Do not assume radial, chained, or secondary damage shares direct-hit status behavior.",
-    "Do not call the weapon a status weapon only because status chance is numerically higher."
+    "Do not infer status opportunity frequency from status chance alone.",
+    "Do not assume every projectile, pellet, beam event, chained event, or damage component is independently status-eligible.",
+    "Do not multiply status chance by fire rate, multishot, pellet count, or component count without validated scope and eligibility relationships.",
+    "Do not infer beam tick frequency from fire rate or beam classification.",
+    "Do not infer status type distribution, proc utility, stack behavior, or primary job from the status application profile alone."
   ]
 }

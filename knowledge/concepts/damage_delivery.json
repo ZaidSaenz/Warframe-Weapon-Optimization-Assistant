@@ -2,66 +2,81 @@
   "id": "damage_delivery",
   "title": "Damage delivery",
   "signal_fields": [
-    "damage_delivery",
-    "mechanic_profile",
-    "target_profile"
+    "delivery_path",
+    "spatial_application"
   ],
   "related_stats": [
     "component_type",
     "projectile_speed",
-    "explosion_radius",
-    "falloff",
     "beam_range",
-    "punch_through",
-    "charge_evidence"
+    "radial_radius",
+    "radial_falloff",
+    "punch_through"
+  ],
+  "derived_signals": [
+    "delivery_profile",
+    "component_relationships"
   ],
   "principles": [
-    "Damage delivery describes how a valid damage instance reaches a target and must remain separate from attack rhythm.",
-    "Direct delivery should not be called hitscan unless the supplied data explicitly distinguishes hitscan from another direct mechanism.",
-    "Projectile-direct delivery may introduce travel behavior, but projectile speed and trajectory must not be invented when absent.",
-    "Projectile-radial delivery combines a projectile event with a spatial damage component; direct impact and radial damage may use different statistics.",
-    "Charged projectile components must be kept separate from uncharged projectile components.",
-    "Radial delivery provides spatial reach but does not automatically establish area control, reliable group clear, or equal damage across the radius.",
-    "Beam delivery should defer to the dedicated beam concept for maintained-contact behavior.",
-    "When several component types exist in one mode, each component must preserve its own evidence and restrictions."
+    "Damage delivery describes how an individual damage component reaches its application point and how that component applies damage at that point.",
+    "Delivery path and spatial application must remain separate because a component may combine projectile, hitscan, or beam travel with direct or radial application.",
+    "Hitscan, projectile, and beam classifications require explicit path evidence and must not be inferred by eliminating other possibilities.",
+    "Direct application affects an explicitly reached target, while radial application affects valid targets within a supplied spatial region.",
+    "Projectile delivery establishes travel but does not define speed, trajectory, gravity, homing, collision, or detonation behavior unless those properties are supplied.",
+    "Radial application does not by itself establish explosion behavior, uniform damage, multi-target reliability, or area-control function.",
+    "Each damage component must preserve its own delivery path, spatial application, statistics, and mechanical evidence."
   ],
   "interpretation": {
-    "direct": [
-      "The supplied component reaches its target without explicit projectile or radial evidence."
+    "hitscan_path": [
+      "The component reaches its application point without conventional projectile travel.",
+      "This classification does not establish accuracy, target acquisition, guaranteed contact, or spatial application."
     ],
-    "projectile": [
-      "The supplied component travels as a projectile.",
-      "Travel limitations remain undetermined without projectile-speed or trajectory evidence."
+    "projectile_path": [
+      "The component travels as a projectile before reaching its application point.",
+      "Travel time and trajectory remain undetermined unless supported by explicit projectile data."
     ],
-    "radial": [
-      "The supplied component affects a spatial region.",
-      "Coverage and retained damage require radius, falloff, or equivalent evidence when available."
+    "beam_path": [
+      "The component reaches its application point through beam delivery rather than conventional projectile travel.",
+      "Range, contact, and application behavior must be interpreted through beam_behavior."
     ],
-    "projectile_radial": [
-      "The mode includes projectile travel followed by radial delivery.",
-      "Impact and radial components must not be merged into one unsupported statistic."
+    "direct_application": [
+      "The component applies damage to an explicitly reached target or collision point.",
+      "Direct application does not determine whether its path is hitscan, projectile, beam, or another supported mechanism."
     ],
-    "charged_projectile": [
-      "The supplied charged component is distinct from the uncharged delivery.",
-      "Its statistics and operational cost must be evaluated separately."
+    "radial_application": [
+      "The component applies damage within a supplied spatial region around an origin.",
+      "Radius and falloff must remain associated with this specific component."
     ],
-    "beam": [
-      "The supplied delivery uses maintained beam contact.",
-      "Detailed interpretation belongs to beam_behavior."
+    "undetermined_path": [
+      "The supplied evidence does not identify how the component reaches its application point."
     ],
-    "mixed": [
-      "The mode contains multiple delivery components.",
-      "Each component must remain traceable to its supplied data."
+    "undetermined_application": [
+      "The supplied evidence does not identify whether the component applies damage directly, radially, or through another spatial model."
+    ]
+  },
+  "conditional_exceptions": {
+    "direct_and_radial_components_present": [
+      "Represent direct and radial damage as separate components when both are independently supplied.",
+      "Do not merge their damage, critical, status, radius, falloff, or target eligibility."
     ],
-    "undetermined": [
-      "The supplied component data do not establish a reliable delivery type."
+    "projectile_with_radial_component": [
+      "Preserve projectile travel and radial application as separate properties or components.",
+      "Do not assume the radial component activates on first impact, after a delay, or through manual detonation without explicit evidence."
+    ],
+    "punch_through_present": [
+      "Associate Punch Through only with the eligible delivery component.",
+      "Do not classify Punch Through as radial application or guaranteed multi-target damage."
+    ],
+    "multiple_components_present": [
+      "Preserve a separate delivery profile for every component.",
+      "Do not assume that components occur simultaneously, share an origin, or affect the same target."
     ]
   },
   "exceptions": [
-    "Do not infer projectile speed from the projectile tag.",
-    "Do not infer explosion radius from a radial component alone.",
-    "Do not assume direct and radial components share critical or status behavior.",
-    "Do not call all direct components hitscan.",
-    "Do not treat every aoe compatibility tag as proof of a radial component."
+    "Do not infer projectile speed, trajectory, gravity, homing, collision, or detonation behavior from projectile delivery alone.",
+    "Do not infer radius, explosion behavior, falloff, group-clear capability, or area control from an aoe or radial label alone.",
+    "Do not assume that separate components share damage, critical, status, targeting, or Punch Through behavior.",
+    "Do not infer delivery path or spatial application solely from the absence of another classification.",
+    "Do not let charge, burst, held input, or another attack-rhythm property redefine the resulting component's delivery profile."
   ]
 }

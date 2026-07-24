@@ -1,47 +1,80 @@
 {
   "id": "description_evidence",
-  "title": "Description evidence",
+  "title": "Official description evidence",
   "signal_fields": [
-    "description_mechanic_present",
-    "description_evidence_quality"
-  ],
-  "related_stats": [
     "display_description",
-    "description_reference",
-    "structured_mechanics"
+    "description_source",
+    "description_reference"
+  ],
+  "derived_signals": [
+    "description_claims",
+    "claim_source_authority",
+    "claim_mechanical_specificity",
+    "claim_scope_clarity",
+    "structured_evidence_relation"
   ],
   "principles": [
-    "Official description text may confirm a named mechanic, activation condition, target behavior, or handling trait that is absent from normalized statistics.",
-    "Description evidence must remain qualitative unless the description supplies an explicit value.",
-    "Structured fields take precedence when they directly contradict broad promotional wording.",
-    "A description may identify mechanics such as chaining, ricochet, homing, lock-on, delayed detonation, damage ramp, conditional reload, or conditional buffs.",
-    "Flavor text and comparative claims must not be converted into quantitative rankings.",
-    "Character-specific bonuses, external synergies, or conditional transformations should be excluded unless the analysis scope explicitly permits them.",
-    "Description-derived mechanics should be marked as descriptive evidence so they are not mistaken for normalized statistics."
+    "Official description text may provide mechanical evidence when it explicitly states a behavior, activation condition, target interaction, handling property, or quantitative mechanic.",
+    "Evidence must be evaluated per extracted claim because one description may contain mechanical statements, promotional language, and unsupported comparisons simultaneously.",
+    "Each claim must preserve its source fragment, subject, property, condition, affected mode or component, and stated scope.",
+    "A claim remains qualitative unless it supplies a clearly identified property, value, unit, and scope.",
+    "Structured evidence takes precedence only when both sources describe the same property, mode, component, and condition and make incompatible claims.",
+    "Description text may validly extend structured data when it identifies a mechanic that the available schema does not represent.",
+    "Description-derived claims must remain traceable and must not be silently converted into normalized statistics."
   ],
   "interpretation": {
     "structured_confirmation": [
-      "The description confirms behavior already represented in structured data."
+      "The claim explicitly confirms a mechanic, value, or condition already represented in structured data.",
+      "It provides corroborating evidence without replacing the structured field."
     ],
     "qualitative_extension": [
-      "The description supplies a relevant qualitative mechanic not represented by numeric fields.",
-      "The conclusion must preserve its stated conditions."
+      "The claim explicitly identifies a relevant mechanic or condition not represented by the available structured fields.",
+      "Preserve the claim as qualitative evidence with all stated conditions and scope."
+    ],
+    "explicit_quantitative_extension": [
+      "The claim supplies a clearly identified mechanical value with sufficient property, unit, mode, component, and condition context.",
+      "Retain it as sourced quantitative evidence until it is independently normalized or validated."
     ],
     "promotional_only": [
-      "The description contains flavor or comparative language without reliable mechanical evidence."
+      "The claim contains flavor, praise, comparison, or subjective language without a mechanically testable statement.",
+      "Do not derive weapon-analysis conclusions from this claim."
     ],
     "conflicting": [
-      "Description text and structured data appear inconsistent.",
-      "Prefer structured evidence and report uncertainty."
+      "The claim and structured data make incompatible statements about the same property under the same mode, component, and condition.",
+      "Preserve both sources and mark the discrepancy as unresolved."
     ],
-    "absent": [
-      "No relevant description evidence is available."
+    "different_scope": [
+      "The claim and structured data describe different modes, components, conditions, or levels of detail.",
+      "Do not classify the difference as a contradiction."
+    ],
+    "irrelevant_to_base_profile": [
+      "The claim describes an external synergy, user-specific interaction, or conditional transformation outside the base weapon profile.",
+      "Preserve the claim as contextual evidence without applying it to unconditional weapon behavior."
+    ]
+  },
+  "conditional_exceptions": {
+    "conditional_weapon_behavior": [
+      "Preserve the activation condition and affected state exactly as supplied.",
+      "Do not generalize conditional behavior into the unconditional base profile."
+    ],
+    "structured_schema_gap": [
+      "Accept explicit qualitative mechanical evidence when no structured field exists for the stated behavior.",
+      "Do not invent implementation details or quantitative values to fill the schema gap."
+    ],
+    "numeric_text_present": [
+      "Treat a number as quantitative mechanical evidence only when its property, unit, subject, and scope are identifiable.",
+      "Do not normalize isolated numbers or promotional comparisons."
+    ],
+    "multiple_claim_types_present": [
+      "Classify each extracted claim independently.",
+      "Do not assign one evidence-quality label to the entire description when its statements differ in reliability or purpose."
     ]
   },
   "exceptions": [
-    "Do not infer hidden values from adjectives such as powerful, rapid, accurate, or devastating.",
-    "Do not infer a mechanic from the weapon name.",
-    "Do not include Warframe-specific bonuses when external synergies are outside scope.",
-    "Do not let description text overwrite explicit normalized component data."
+    "Do not infer hidden values from adjectives such as powerful, rapid, accurate, precise, or devastating.",
+    "Do not infer mechanics from the weapon name, visual design, or thematic language.",
+    "Do not let description text silently overwrite explicit normalized component data.",
+    "Do not expand a named mechanic beyond the behavior, subject, conditions, and scope explicitly stated.",
+    "Do not treat absence of a mechanic from the description as evidence that the mechanic does not exist."
   ]
 }

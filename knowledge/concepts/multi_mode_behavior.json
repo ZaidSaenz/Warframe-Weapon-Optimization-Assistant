@@ -2,47 +2,88 @@
   "id": "multi_mode_behavior",
   "title": "Multiple attack modes",
   "signal_fields": [
-    "attack_mode_count",
-    "primary_mode_id",
-    "secondary_mode_ids"
+    "attack_mode_records"
   ],
   "related_stats": [
-    "attack_modes",
     "mode_id",
+    "parent_mode_id",
     "state_name",
+    "mode_record_type",
+    "mode_accessibility",
+    "mode_provenance",
     "trigger_type",
-    "damage_components"
+    "damage_components",
+    "activation_conditions"
+  ],
+  "derived_signals": [
+    "confirmed_attack_modes",
+    "mode_relationships",
+    "analysis_relevant_modes",
+    "ambiguous_mode_records"
   ],
   "principles": [
-    "A weapon with multiple normalized attack modes must be evaluated mode by mode before a whole-weapon conclusion is produced.",
-    "The first normalized mode must not automatically be treated as the only practical mode when other modes contain distinct triggers, components, or mechanics.",
-    "Statistics from separate modes must not be combined into one imaginary attack.",
-    "A secondary mode may refine or change the weapon's role when its supplied pattern is materially different from the primary mode.",
-    "A mode that appears to be inherited, duplicated, fallback, or auxiliary should be treated cautiously unless its structure or description confirms practical relevance.",
-    "Whole-weapon conclusions should identify the dominant mode and describe meaningful secondary behavior separately.",
-    "Improvement priorities should favor parameters shared by relevant modes unless the requested analysis explicitly targets one mode."
+    "Each confirmed attack mode must be evaluated independently before producing a whole-weapon conclusion.",
+    "Mode records, internal states, auxiliary components, and fallback entries must remain distinct record types and must not be treated as interchangeable.",
+    "Statistics, damage components, timing, costs, and mechanics from separate modes must not be combined into one synthetic attack.",
+    "Mode distinction must be evaluated from explicit differences in input, timing, delivery, components, cost, accessibility, or activation conditions rather than from labels or ordering alone.",
+    "Statistical similarity does not prove that two records represent the same practical mode when their state, activation, or provenance differs.",
+    "Whole-weapon conclusions may summarize several confirmed modes, but every claim must remain traceable to the mode that supports it.",
+    "Source designation, player accessibility, and analytical relevance must remain separate properties."
   ],
   "interpretation": {
-    "single_mode": [
-      "The supplied weapon contains one normalized attack mode."
-    ],
-    "multiple_similar_modes": [
-      "Several modes exist, but their supplied behavior is substantially similar.",
-      "Avoid overstating mode diversity."
+    "single_confirmed_mode": [
+      "The supplied records establish one player-facing or mechanically relevant attack mode.",
+      "Other records, if present, do not qualify as independent modes."
     ],
     "multiple_distinct_modes": [
-      "The weapon contains materially different attack modes.",
-      "The primary job may depend on which mode is emphasized."
+      "Two or more confirmed modes differ in at least one supplied mechanical or accessibility dimension.",
+      "Each mode must preserve its own statistics, rhythm, delivery, costs, and conclusions."
+    ],
+    "equivalent_or_duplicate_records": [
+      "Several records appear to represent the same mode without a supported mechanical distinction.",
+      "Treat them as equivalent only when provenance, activation, and component evidence also support equivalence."
+    ],
+    "conditional_mode": [
+      "The record represents a distinct attack mode available only under a supplied condition or state.",
+      "Preserve its activation requirement and do not describe it as permanently available."
+    ],
+    "internal_state": [
+      "The record represents a phase or state of another mode rather than an independently selected attack mode.",
+      "Associate it with its parent mode when that relationship is supplied."
+    ],
+    "auxiliary_component_record": [
+      "The record describes a component, subattack, or implementation detail rather than a complete player-facing mode.",
+      "Do not promote it to an independent mode."
     ],
     "ambiguous_modes": [
-      "Some modes lack enough labels or mechanics to establish their practical role.",
-      "Use cautious wording and preserve uncertainty."
+      "The supplied records indicate possible mode variation but do not establish record type, accessibility, or mechanical distinction with sufficient confidence.",
+      "Preserve the records separately without assigning equivalence or dominance."
+    ]
+  },
+  "conditional_exceptions": {
+    "source_primary_designation": [
+      "Preserve an explicit primary-mode designation as source metadata.",
+      "Do not treat that designation alone as proof that the mode defines the weapon's primary practical job."
+    ],
+    "state_name_present": [
+      "Treat state_name as state evidence rather than mode evidence unless independent input, activation, timing, or delivery differences establish a distinct mode."
+    ],
+    "duplicate_or_fallback_provenance": [
+      "Treat duplicated, inherited, fallback, or generated records as non-distinct unless additional evidence establishes separate mechanical relevance."
+    ],
+    "mode_specific_analysis": [
+      "When the requested analysis targets one mode, restrict conclusions and improvement selection to that mode and its associated states or components."
+    ],
+    "shared_resource_or_component": [
+      "Preserve shared magazine, reserve, component, or activation relationships without merging the modes' independent statistics."
     ]
   },
   "exceptions": [
-    "Do not merge damage values across modes.",
-    "Do not assume an unlabeled mode is an alternate fire.",
-    "Do not assume every normalized mode is player-selectable.",
-    "Do not let a secondary mode overwrite the primary mode without explicit evidence."
+    "Do not merge damage, critical, status, timing, ammunition, or delivery values across modes.",
+    "Do not assume that an unlabeled record is an alternate fire.",
+    "Do not assume that every normalized record is player-selectable or independently activated.",
+    "Do not identify a dominant mode from ordering, naming, source-primary designation, or higher damage alone.",
+    "Do not declare two records equivalent from matching statistics alone.",
+    "Do not let one mode overwrite another mode's evidence or conclusions."
   ]
 }

@@ -1,32 +1,87 @@
 {
   "id": "sustained_damage",
   "title": "Sustained damage cycle",
+  "signal_fields": [
+    "sustained_cycle_profile",
+    "active_damage_output",
+    "mechanical_application_continuity"
+  ],
   "related_stats": [
-    "fire_rate",
-    "magazine_size",
-    "reload_time",
-    "ammo_cost_per_damage_tick",
-    "ammo_capacity",
-    "ammo_pickup",
-    "application_frequency"
+    "validated_contact_profile",
+    "reload_friction",
+    "ammo_pressure",
+    "sustained_comparison_context",
+    "relevant_damage_components"
+  ],
+  "derived_signals": [
+    "cycle_adjusted_damage_output",
+    "cycle_continuity",
+    "sustained_damage_relationship",
+    "sustained_damage_limiting_factors",
+    "long_duration_reserve_limit"
   ],
   "principles": [
-    "Sustained performance is determined by the complete repeated cycle of active damage delivery, reload downtime, and ammunition availability.",
-    "Fire rate can increase immediate pressure while also consuming the magazine faster and increasing reload frequency.",
-    "Magazine size and reload time must be interpreted relative to fire rate; none determines sustained performance alone.",
-    "A large magazine is valuable when it meaningfully extends active firing time, while faster reload is most valuable when downtime occupies a significant share of the cycle.",
-    "High fire rate can create strong immediate pressure but may also increase ammunition consumption and long-duration resource demands.",
-    "Practical sustained output depends on maintaining valid target contact; only discuss recoil, accuracy, spread, or transitions when explicitly supplied.",
-    "Reload improvements reduce forced downtime, and their value grows when the weapon has a short active firing window or long interruption.",
-    "Magazine improvements delay reload interruptions, but their value diminishes when the original magazine already lasts substantially longer than supported engagement windows.",
-    "Ammo capacity, ammo pickup, and ammunition cost determine whether the firing cycle can continue across extended use.",
-    "Do not infer ammunition efficiency from fire rate alone when pickup or per-attack cost is absent.",
-    "Sustained damage describes useful pressure over repeated cycles, not uninterrupted firing for an entire mission.",
-    "A sustained firing rhythm does not automatically make sustained_damage the primary job when the complete mechanic more distinctly supports another function."
+    "Sustained damage describes useful offensive output maintained across repeated active and recovery cycles.",
+    "Cycle continuity and active damage output must both be supported because a stable operating cycle does not by itself establish meaningful sustained damage.",
+    "Active output, recurring recovery costs, mechanical application continuity, and validated contact must remain separate properties.",
+    "Reload friction affects output across repeated short cycles, while ammunition pressure may limit continuation across longer use.",
+    "Only damage components explicitly participating in the evaluated repeated cycle may contribute to sustained-damage evidence.",
+    "Cycle-adjusted output must remain theoretical when contact or application validity is not sufficiently defined.",
+    "Qualitative sustained-damage classifications require a supplied comparison context and must not use universal thresholds."
   ],
+  "interpretation": {
+    "strong": [
+      "Active damage output remains favorable after accounting for the supported recurring recovery cycle.",
+      "No supplied interruption or application limitation substantially undermines repeated offensive pressure."
+    ],
+    "moderate": [
+      "The attack pattern maintains useful cycle-adjusted output, but one or more supplied limitations noticeably reduce repeated pressure.",
+      "The limiting factors must remain explicitly identified."
+    ],
+    "limited": [
+      "Active output, recurring interruptions, or application restrictions provide limited evidence for maintaining useful damage across repeated cycles.",
+      "Operational continuity alone is insufficient to raise this classification."
+    ],
+    "undetermined": [
+      "Active damage output, cycle timing, application continuity, or comparison context is insufficiently defined.",
+      "The sustained-damage relationship cannot be classified confidently."
+    ]
+  },
+  "conditional_exceptions": {
+    "interruption_limited": [
+      "Record reload, recharge, preparation, or another recurring recovery cost as a limiting factor.",
+      "Use the normalized interruption profile without reconstructing its recovery model inside this concept."
+    ],
+    "application_limited": [
+      "Record restrictions in attack-event or damage-instance frequency separately from interruption friction.",
+      "Do not infer practical application frequency from trigger type or fire rate alone."
+    ],
+    "contact_limited": [
+      "Reduce practical confidence only when validated contact evidence applies to the same mode and damage components.",
+      "Do not infer continuous contact from beam, automatic, held, or sustained-input behavior."
+    ],
+    "reserve_limited": [
+      "Record ammunition pressure as a long-duration limitation without merging it into reload friction.",
+      "Do not infer mission-long sustainability from ammo pickup amount alone."
+    ],
+    "persistent_component_present": [
+      "Include damage continuing during a recovery interval only when its duration, activation, and temporal overlap with that interval are explicitly supplied.",
+      "Do not assume every radial, chained, delayed, or secondary component persists."
+    ],
+    "multiple_cycle_states": [
+      "Preserve separate active-output and interruption states when cadence, damage, consumption, or application changes during use.",
+      "Do not reduce spool-up, variable charge, staged behavior, or conditional output to one constant cycle."
+    ],
+    "multiple_modes_present": [
+      "Evaluate sustained damage independently for every relevant attack mode.",
+      "Do not combine their active output, interruptions, or reserve costs into one synthetic cycle."
+    ]
+  },
   "exceptions": [
-    "Do not treat theoretical fire rate as practical sustained output when firing behavior limits real application.",
-    "Do not infer ammunition starvation without capacity, pickup, cost, or explicit evidence.",
-    "Do not merge chained, radial, or secondary damage into the main cycle unless explicitly supplied."
+    "Do not infer sustained damage from automatic, held, continuous, beam, or high-fire-rate behavior alone.",
+    "Do not infer favorable sustained damage from a long active window or low reload friction without supported active damage output.",
+    "Do not merge reload friction, application limitations, contact limitations, and ammunition pressure into one undifferentiated factor.",
+    "Do not assume uninterrupted target contact throughout the active window.",
+    "Do not select sustained_damage as the primary job from cycle continuity or cycle-adjusted output alone."
   ]
 }

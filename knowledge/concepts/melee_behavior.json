@@ -1,62 +1,80 @@
 {
   "id": "melee_behavior",
-  "title": "Melee behavior",
+  "title": "Melee attack-family classification",
   "signal_fields": [
     "weapon_category",
-    "weapon_class",
-    "melee_profile"
+    "melee_attack_records"
   ],
   "related_stats": [
-    "attack_speed",
-    "range",
-    "follow_through",
-    "blocking_angle",
-    "combo_duration",
-    "heavy_attack_wind_up",
-    "heavy_attack_damage",
-    "slam_attack_damage",
-    "slam_radial_damage",
-    "slam_radius",
-    "heavy_slam_attack_damage",
-    "heavy_slam_radial_damage",
-    "heavy_slam_radius",
-    "slide_attack_damage"
+    "attack_family",
+    "attack_id",
+    "mode_id",
+    "component_type"
+  ],
+  "derived_signals": [
+    "defined_melee_attack_families",
+    "family_evidence_confidence",
+    "ambiguous_melee_attack_records"
   ],
   "principles": [
-    "Melee analysis must separate normal attacks, heavy attacks, slide attacks, slams, and heavy slams when their supplied values differ.",
-    "Attack speed affects repeated normal-attack rhythm but must not be treated as the complete animation speed of every stance action.",
-    "Range describes nominal melee reach and should not be converted into reliable group coverage without stance, arc, or movement evidence.",
-    "Follow-through describes retained damage across successive enemies in a swing path and is not the same as Punch Through or radial damage.",
-    "Heavy-attack suitability depends on heavy damage, wind-up, critical and status relationships, and the cost or activation system when supplied.",
-    "Slam radius supplies spatial reach, while slam radial damage supplies the corresponding damage component; neither alone establishes area control.",
-    "Combo duration affects how long accumulated combo can be retained but does not prove fast combo generation.",
-    "Blocking angle is a defensive handling field and should not be used as offensive damage evidence."
+    "Melee behavior identifies explicitly represented melee attack families and must not infer specialization or practical suitability from their presence.",
+    "Normal attacks, heavy attacks, slide attacks, slams, and heavy slams must remain separate when the source provides distinct attack records.",
+    "An attack family should be identified from explicit record semantics rather than from the mere presence of a generic or default numeric value.",
+    "Each family must retain its own attack identifier, mode association, damage components, timing evidence, critical profile, and status profile when supplied.",
+    "Slam and heavy-slam families may contain separate direct and radial components, but component delivery must be interpreted outside this concept.",
+    "Normal-attack sequence behavior remains undetermined without stance-specific evidence.",
+    "The existence of several melee attack families does not establish a mixed profile or determine the weapon's primary job."
   ],
   "interpretation": {
-    "normal_attack_focused": [
-      "The supplied profile primarily supports repeated normal melee attacks."
+    "normal_attack_defined": [
+      "An explicit normal-attack record is available for the evaluated melee weapon.",
+      "The record does not establish stance sequence behavior, hit count, movement, or forced effects."
     ],
-    "heavy_attack_capable": [
-      "The supplied heavy-attack values provide explicit evidence for heavy-attack analysis.",
-      "Wind-up and supported relationships determine practical suitability."
+    "heavy_attack_defined": [
+      "An explicit heavy-attack record is available and remains separate from normal attacks and heavy slams.",
+      "Its existence does not establish heavy-attack specialization."
     ],
-    "slam_capable": [
-      "The supplied slam fields provide explicit radial or impact behavior.",
-      "Normal slam and heavy slam must remain separate."
+    "slide_attack_defined": [
+      "An explicit slide-attack record is available.",
+      "Its practical coverage and relevance require additional mechanical evidence."
     ],
-    "mixed_melee": [
-      "The weapon has meaningful evidence across several melee attack families.",
-      "The primary job should identify which family is best supported."
+    "slam_defined": [
+      "An explicit normal-slam record is available.",
+      "Any direct and radial components must remain separately traceable."
+    ],
+    "heavy_slam_defined": [
+      "An explicit heavy-slam record is available and remains separate from normal slam and ordinary heavy attack.",
+      "Any direct and radial components must remain separately traceable."
+    ],
+    "ambiguous_family": [
+      "A melee attack record exists, but its label or structure does not identify a reliable attack family.",
+      "Preserve the record without assigning it to a family by elimination."
     ],
     "undetermined": [
-      "The supplied melee fields are insufficient to identify a dominant melee pattern."
+      "The weapon is identified as melee, but the supplied attack records do not reliably establish its represented families."
+    ]
+  },
+  "conditional_exceptions": {
+    "direct_and_radial_slam_components": [
+      "Associate both components with the corresponding slam family while preserving separate damage-delivery profiles.",
+      "Do not add their values or assume identical critical, status, falloff, or target behavior."
+    ],
+    "stance_evidence_absent": [
+      "Do not infer normal-attack sequences, arcs, hit counts, movement, multipliers, or forced status effects."
+    ],
+    "default_or_inherited_attack_values": [
+      "Do not treat generic, duplicated, inherited, or fallback values as proof of a meaningful distinct attack family without supporting record evidence."
+    ],
+    "multiple_attack_families_present": [
+      "Preserve all confirmed families independently.",
+      "Do not select a dominant family from record presence alone."
     ]
   },
   "exceptions": [
-    "Do not infer stance multipliers or forced status effects.",
-    "Do not infer attack arcs from range alone.",
-    "Do not call every melee weapon heavy-attack focused because heavy-attack fields exist.",
-    "Do not merge slam radial damage with normal attack damage.",
-    "Do not infer combo efficiency without combo-generation evidence."
+    "Do not infer stance behavior from weapon class.",
+    "Do not infer reliable multi-target coverage from melee classification, range, or follow-through.",
+    "Do not classify a melee weapon as normal-attack, heavy-attack, slide, or slam focused solely because that family is represented.",
+    "Do not merge statistics across normal attack, heavy attack, slide attack, slam, or heavy slam families.",
+    "Do not infer combo generation, consumption, or efficiency from attack-family records."
   ]
 }

@@ -19,14 +19,19 @@
       "match": "any",
       "conditions": [
         {
-          "field": "critical_relationship",
-          "operator": "in",
-          "value": [
-            "limited",
-            "moderate",
-            "aligned",
-            "mixed"
-          ]
+          "field": "critical_profile_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "critical_chance",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "critical_multiplier",
+          "operator": "greater_than",
+          "value": 0
         }
       ],
       "retrieve": [
@@ -38,14 +43,19 @@
       "match": "any",
       "conditions": [
         {
-          "field": "status_relationship",
-          "operator": "in",
-          "value": [
-            "limited",
-            "moderate",
-            "aligned",
-            "mixed"
-          ]
+          "field": "status_profile_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "status_chance",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "eligible_status_opportunity_profile_present",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -57,18 +67,44 @@
       "match": "any",
       "conditions": [
         {
-          "field": "attack_behavior",
+          "field": "trigger_type",
           "operator": "in",
           "value": [
             "automatic",
             "semi_automatic",
             "burst",
             "charge",
-            "continuous",
-            "active",
             "duplex",
-            "melee_repeated"
+            "held",
+            "staged",
+            "secondary_activation",
+            "melee"
           ]
+        },
+        {
+          "field": "burst_count",
+          "operator": "greater_than",
+          "value": 1
+        },
+        {
+          "field": "charge_time",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "has_spool_up_evidence",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_press_release_evidence",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_secondary_activation_evidence",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -80,15 +116,29 @@
       "match": "any",
       "conditions": [
         {
-          "field": "damage_delivery",
+          "field": "delivery_path",
+          "operator": "in",
+          "value": [
+            "hitscan",
+            "projectile",
+            "beam",
+            "undetermined"
+          ]
+        },
+        {
+          "field": "spatial_application",
           "operator": "in",
           "value": [
             "direct",
-            "projectile",
             "radial",
             "mixed",
-            "beam"
+            "undetermined"
           ]
+        },
+        {
+          "field": "damage_components_present",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -97,12 +147,27 @@
     },
     {
       "id": "retrieve_multi_mode_behavior",
-      "match": "all",
+      "match": "any",
       "conditions": [
         {
-          "field": "attack_mode_count",
+          "field": "attack_mode_records_count",
           "operator": "greater_than",
           "value": 1
+        },
+        {
+          "field": "has_mode_state_evidence",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_parent_mode_relationship",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_ambiguous_mode_records",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -111,10 +176,30 @@
     },
     {
       "id": "retrieve_multi_instance_delivery",
-      "match": "all",
+      "match": "any",
       "conditions": [
         {
-          "field": "has_multi_instance_evidence",
+          "field": "base_instance_count",
+          "operator": "greater_than",
+          "value": 1
+        },
+        {
+          "field": "pellet_count",
+          "operator": "greater_than",
+          "value": 1
+        },
+        {
+          "field": "multishot",
+          "operator": "greater_than",
+          "value": 1
+        },
+        {
+          "field": "damage_component_count",
+          "operator": "greater_than",
+          "value": 1
+        },
+        {
+          "field": "has_conditional_instance_evidence",
           "operator": "equals",
           "value": true
         }
@@ -135,6 +220,11 @@
             "archmelee",
             "drifter_melee"
           ]
+        },
+        {
+          "field": "melee_attack_records_present",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -143,10 +233,15 @@
     },
     {
       "id": "retrieve_description_evidence",
-      "match": "all",
+      "match": "any",
       "conditions": [
         {
-          "field": "description_mechanic_present",
+          "field": "description_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "description_claims_present",
           "operator": "equals",
           "value": true
         }
@@ -160,13 +255,34 @@
       "match": "any",
       "conditions": [
         {
-          "field": "reload_friction",
+          "field": "recovery_model",
           "operator": "in",
           "value": [
-            "moderate",
-            "high",
-            "special_reload"
+            "full_magazine",
+            "incremental",
+            "regenerative",
+            "staged"
           ]
+        },
+        {
+          "field": "reload_time",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "reload_delay",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "reload_rate",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "reload_unit_time",
+          "operator": "greater_than",
+          "value": 0
         }
       ],
       "retrieve": [
@@ -174,13 +290,28 @@
       ]
     },
     {
-      "id": "retrieve_sustained_behavior",
-      "match": "all",
+      "id": "retrieve_sustained_damage",
+      "match": "any",
       "conditions": [
         {
-          "field": "damage_behavior",
+          "field": "sustained_cycle_profile_present",
           "operator": "equals",
-          "value": "sustained"
+          "value": true
+        },
+        {
+          "field": "has_repeatable_attack_cycle",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "active_damage_output_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "mechanical_application_continuity_present",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -189,10 +320,15 @@
     },
     {
       "id": "retrieve_beam_behavior",
-      "match": "all",
+      "match": "any",
       "conditions": [
         {
-          "field": "damage_delivery",
+          "field": "uses_beam_delivery",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "delivery_path",
           "operator": "equals",
           "value": "beam"
         }
@@ -202,11 +338,31 @@
       ]
     },
     {
-      "id": "retrieve_structured_multi_target",
-      "match": "all",
+      "id": "retrieve_multi_target_delivery",
+      "match": "any",
       "conditions": [
         {
-          "field": "has_structured_multi_target_evidence",
+          "field": "multi_target_mechanic_records_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_radial_component",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "has_chaining",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "punch_through_depth",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "distributed_instance_profile_present",
           "operator": "equals",
           "value": true
         }
@@ -216,25 +372,21 @@
       ]
     },
     {
-      "id": "retrieve_descriptive_multi_target",
-      "match": "all",
-      "conditions": [
-        {
-          "field": "multi_target_evidence_quality",
-          "operator": "equals",
-          "value": "descriptive"
-        }
-      ],
-      "retrieve": [
-        "multi_target_delivery"
-      ]
-    },
-    {
       "id": "retrieve_special_mechanic_review",
-      "match": "all",
+      "match": "any",
       "conditions": [
         {
-          "field": "special_mechanic_needs_review",
+          "field": "special_mechanic_records_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "structured_special_mechanic_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "validated_description_mechanic_present",
           "operator": "equals",
           "value": true
         }
@@ -244,33 +396,38 @@
       ]
     },
     {
-      "id": "retrieve_ammo_consumption_rate",
+      "id": "retrieve_ammo_consumption",
       "match": "any",
       "conditions": [
         {
-          "field": "consumption_rate_signal",
+          "field": "ammo_reserve_model",
           "operator": "in",
           "value": [
-            "moderate",
-            "elevated"
+            "finite",
+            "regenerative",
+            "shared",
+            "unlimited"
           ]
-        }
-      ],
-      "retrieve": [
-        "ammo_consumption"
-      ]
-    },
-    {
-      "id": "retrieve_ammo_economy",
-      "match": "any",
-      "conditions": [
+        },
         {
-          "field": "ammo_economy_signal",
-          "operator": "in",
-          "value": [
-            "moderate",
-            "elevated"
-          ]
+          "field": "ammo_reserve_capacity",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "ammo_cost_per_consumption_event",
+          "operator": "greater_than",
+          "value": 0
+        },
+        {
+          "field": "consumption_event_frequency_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "ammo_regeneration_present",
+          "operator": "equals",
+          "value": true
         }
       ],
       "retrieve": [
@@ -282,24 +439,32 @@
       "match": "any",
       "conditions": [
         {
-          "field": "reload_friction",
-          "operator": "in",
-          "value": [
-            "moderate",
-            "high",
-            "special_reload"
-          ]
+          "field": "operational_friction_records_present",
+          "operator": "equals",
+          "value": true
         },
         {
-          "field": "handling_friction",
-          "operator": "in",
-          "value": [
-            "moderate",
-            "high"
-          ]
+          "field": "handling_friction_present",
+          "operator": "equals",
+          "value": true
         },
         {
-          "field": "has_charge_evidence",
+          "field": "preparation_friction_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "interruption_friction_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "positioning_friction_present",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "field": "tracking_friction_present",
           "operator": "equals",
           "value": true
         }

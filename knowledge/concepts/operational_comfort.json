@@ -1,38 +1,90 @@
 {
   "id": "operational_comfort",
   "title": "Operational comfort",
+  "signal_fields": [
+    "operational_friction_records"
+  ],
   "related_stats": [
-    "accuracy",
-    "recoil",
-    "projectile_speed",
-    "charge_time",
-    "beam_range",
-    "magazine_size",
-    "reload_time",
-    "attack_speed",
-    "heavy_attack_wind_up"
+    "mode_id",
+    "friction_type",
+    "friction_frequency",
+    "friction_severity",
+    "friction_conditions",
+    "friction_mandatory",
+    "operational_advantages"
+  ],
+  "derived_signals": [
+    "active_friction_sources",
+    "recurring_friction_sources",
+    "conditional_friction_sources",
+    "dominant_friction_type",
+    "operational_comfort"
   ],
   "principles": [
-    "Operational comfort must be separated from combat function and damage potential.",
-    "Comfort conclusions must use only supplied handling, timing, reach, and interruption evidence.",
-    "High fire rate alone does not make a weapon demanding.",
-    "Do not mention accuracy, recoil, projectile travel, charge handling, or aiming difficulty when the corresponding fields are absent.",
-    "A long active firing window may offset a noticeable reload interruption.",
-    "Short range, slow projectiles, charge time, recoil, accuracy limitations, or heavy wind-up may affect comfort only when explicitly supplied.",
-    "Use undetermined when the available operational evidence is insufficient."
+    "Operational comfort summarizes the effort, preparation, positioning, tracking, and interruption involved in using an attack mode.",
+    "Every comfort conclusion must be traceable to an explicit and previously validated friction record.",
+    "Handling, preparation, interruption, positioning, and tracking friction must remain separate because they describe different operational demands.",
+    "Friction frequency, severity, conditions, and whether the cost is mandatory must be evaluated independently.",
+    "An operational advantage may reduce the practical weight of a directly related friction but must not erase or offset unrelated limitations.",
+    "A mixed profile should be preserved when comfort differs materially across operational dimensions.",
+    "Operational comfort must remain separate from damage potential, statistical strength, combat function, and subjective enjoyment."
   ],
   "interpretation": {
     "comfortable": [
-      "The supplied handling and interruption evidence suggests low operational friction."
+      "The evaluated mode has little mandatory or recurring operational friction across the supplied dimensions.",
+      "Any supported costs are limited, infrequent, or narrowly conditional."
     ],
     "manageable": [
-      "The weapon has noticeable but controlled operational friction."
+      "The mode has noticeable operational friction, but no supplied friction source consistently dominates its normal operation.",
+      "The specific sources and conditions must remain stated."
     ],
     "demanding": [
-      "The supplied handling or interruption evidence indicates repeated execution demands."
+      "At least one supported friction source is substantial, frequent, or mandatory during normal operation.",
+      "The explanation must identify the dominant operational demand."
+    ],
+    "mixed": [
+      "The mode is comfortable in some operational dimensions and demanding in others.",
+      "Preserve the dimensional profile instead of reducing it to an unqualified average."
     ],
     "undetermined": [
-      "The supplied data is insufficient to classify operational comfort confidently."
+      "The supplied friction records are absent, incomplete, or insufficiently validated for a reliable comfort classification."
     ]
-  }
+  },
+  "conditional_exceptions": {
+    "handling_friction_present": [
+      "Preserve accuracy, spread, recoil, stability, and contact-control evidence as distinct handling causes when supplied.",
+      "Do not treat one handling statistic as proof of another."
+    ],
+    "preparation_friction_present": [
+      "Treat charge, wind-up, spool-up, or another required preparation stage as preparation friction only when its timing and activation role are supplied.",
+      "Do not merge ranged charge timing with melee heavy-attack wind-up."
+    ],
+    "interruption_friction_present": [
+      "Use a validated reload, recharge, recovery, or staged-interruption profile.",
+      "Do not infer interruption severity from reload time or magazine size alone."
+    ],
+    "positioning_friction_present": [
+      "Treat limited reach as positioning friction only when the attack mode requires the user to operate within that supplied reach.",
+      "Do not reinterpret limited reach as poor accuracy, recoil, or tracking."
+    ],
+    "tracking_friction_present": [
+      "Use projectile travel, target acquisition, beam contact, or movement-sensitive evidence only when their practical tracking effect is explicitly supported.",
+      "Do not classify projectile or beam delivery itself as demanding."
+    ],
+    "operational_advantage_present": [
+      "Apply the advantage only to the friction dimension it directly affects.",
+      "Do not let a long firing window erase handling, tracking, preparation, or positioning friction."
+    ],
+    "multiple_modes_present": [
+      "Classify operational comfort separately for each relevant mode.",
+      "Do not average incompatible mode profiles into one whole-weapon rating without an explicit relevance criterion."
+    ]
+  },
+  "exceptions": [
+    "Do not infer aiming difficulty from accuracy, recoil, projectile delivery, beam range, or melee range without validated practical evidence.",
+    "Do not infer demanding operation from high fire rate, attack speed, charge labels, or projectile classification alone.",
+    "Do not let favorable damage, critical, status, multi-target behavior, or special mechanics improve the comfort classification.",
+    "Do not treat conditional friction as permanently active.",
+    "Do not merge friction evidence across attack modes with different operational behavior."
+  ]
 }

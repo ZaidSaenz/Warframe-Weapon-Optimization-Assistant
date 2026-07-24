@@ -1,40 +1,82 @@
 {
   "id": "ammo_consumption",
-  "title": "Ammunition consumption",
+  "title": "Ammunition pressure",
+  "signal_fields": [
+    "ammo_reserve_model",
+    "ammo_reserve_capacity",
+    "ammo_cost_per_consumption_event",
+    "consumption_event_frequency"
+  ],
   "related_stats": [
-    "fire_rate",
-    "magazine_size",
-    "ammo_capacity",
     "ammo_pickup",
-    "ammo_cost_per_damage_tick",
-    "reload_time"
+    "attack_behavior",
+    "consumption_event_type"
+  ],
+  "derived_signals": [
+    "maximum_reserve_consumption_rate",
+    "reserve_duration_at_maximum_consumption",
+    "pickup_recovery_ratio",
+    "ammo_pressure"
   ],
   "principles": [
-    "Ammunition pressure should be evaluated from consumption rate, reserve capacity, pickup, and weapon-specific cost rather than from fire rate alone.",
-    "High fire rate may increase consumption, but the practical result depends on whether each attack or tick consumes ammunition and how much is recovered.",
-    "A large reserve delays depletion but does not prove long-duration efficiency.",
-    "Ammo pickup can offset high consumption when supplied values support that relationship.",
-    "Beam and continuous weapons may use ammunition per tick or through another weapon-specific rule; do not assume one unit per displayed fire-rate event.",
-    "Do not recommend ammunition efficiency as a dominant correction when pickup or cost information is absent unless the mechanic explicitly identifies a resource problem.",
-    "Use the term ammunition or munición, not projectiles, when discussing reserves or consumption."
+    "Ammunition pressure describes how quickly an attack mode can deplete its available reserve under a defined consumption pattern.",
+    "Reserve cost and consumption-event frequency must remain separate because neither value alone establishes ammunition pressure.",
+    "The ammunition-consuming event must be explicitly identified and must not be inferred from fire rate, damage ticks, pellets, or delivery type.",
+    "Reserve capacity delays depletion but does not establish efficient or sustainable ammunition use.",
+    "Ammo pickup describes recovery per pickup event and does not establish pickup availability or long-duration sustainability.",
+    "Maximum reserve duration represents a standardized maximum-consumption scenario and must remain distinct from practical player use.",
+    "Ammunition pressure must be evaluated separately for attack modes with different costs or consumption patterns."
   ],
   "interpretation": {
     "low": [
-      "The supplied consumption signal does not indicate notable reserve pressure."
+      "The supplied reserve, cost, and consumption frequency indicate limited pressure under the defined consumption scenario.",
+      "This classification does not guarantee indefinite operation without recovery."
     ],
     "moderate": [
-      "Consumption may require attention during repeated use but is not clearly dominant."
+      "Repeated use creates noticeable reserve pressure without making depletion clearly dominant under the supplied scenario."
     ],
     "elevated": [
-      "The firing pattern suggests increased consumption, but final efficiency still depends on pickup and cost data."
+      "The supplied consumption pattern can deplete the available reserve quickly relative to its capacity.",
+      "Pickup recovery may reduce this pressure but does not establish sustained availability."
+    ],
+    "regenerative": [
+      "The ammunition resource recovers through an explicitly supplied regeneration model rather than ordinary pickup-dependent reserve replacement.",
+      "Regeneration delay, rate, and activation conditions must remain separate."
+    ],
+    "unlimited": [
+      "The evaluated mode does not consume a finite ammunition reserve under the supplied mechanic.",
+      "Do not apply conventional reserve-pressure logic."
     ],
     "undetermined": [
-      "The supplied fields are insufficient to classify ammunition efficiency."
+      "The ammunition cost, consuming event, event frequency, or reserve model is not sufficiently defined.",
+      "Reserve capacity, pickup amount, or displayed fire rate alone is insufficient."
+    ]
+  },
+  "conditional_exceptions": {
+    "per_damage_tick_source_data": [
+      "Normalize ammo_cost_per_damage_tick into ammunition cost per defined consumption event only when the source explicitly links consumption to damage ticks.",
+      "Do not infer that relationship from beam or continuous delivery."
+    ],
+    "player_limited_consumption": [
+      "Treat the supplied maximum event frequency as an upper consumption bound rather than guaranteed practical consumption."
+    ],
+    "variable_consumption": [
+      "Preserve separate costs or phases when ammunition consumption changes during charge, burst, held, Duplex, staged, or alternate-mode behavior.",
+      "Do not reduce variable consumption to one constant rate without explicit normalization."
+    ],
+    "pickup_recovery_available": [
+      "Compare ammo pickup with documented consumption only as recovery per pickup event.",
+      "Do not infer how frequently pickups occur or whether recovery keeps pace during actual missions."
+    ],
+    "multi_mode_weapon": [
+      "Evaluate ammunition pressure independently for every mode with a distinct cost, reserve interaction, or consumption frequency."
     ]
   },
   "exceptions": [
-    "Do not infer ammunition starvation from fire rate alone.",
-    "Do not assume multishot consumes additional ammunition.",
-    "Do not infer per-tick beam cost when it is absent."
+    "Do not infer ammunition pressure from fire rate alone.",
+    "Do not assume that multishot consumes additional ammunition.",
+    "Do not infer ammunition cost from pellets, fire iterations, damage components, beam classification, or radial behavior.",
+    "Do not include magazine reload interruption in ammunition-pressure classification.",
+    "Do not treat ammo pickup amount as proof of long-duration ammunition sustainability."
   ]
 }

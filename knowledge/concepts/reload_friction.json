@@ -1,60 +1,93 @@
 {
   "id": "reload_friction",
   "title": "Reload friction",
+  "signal_fields": [
+    "recovery_model",
+    "magazine_size",
+    "magazine_consumption_rate"
+  ],
   "related_stats": [
     "reload_time",
-    "magazine_size",
-    "fire_rate",
-    "ammo_cost_per_damage_tick",
-    "firing_mode",
-    "reload_type"
+    "reload_start_time",
+    "reload_unit_time",
+    "reload_end_time",
+    "reload_delay",
+    "reload_delay_empty",
+    "reload_rate",
+    "reload_interruptible"
   ],
   "derived_signals": [
     "estimated_magazine_duration_seconds",
+    "mandatory_recovery_delay",
+    "time_to_partial_recovery",
+    "time_to_full_recovery",
     "reload_cycle_share",
-    "reload_frequency"
+    "maximum_reload_event_frequency",
+    "partial_recovery_flexibility",
+    "reload_friction"
   ],
   "principles": [
-    "Reload friction must be evaluated from the complete firing cycle rather than from reload time alone.",
-    "Compare reload time with the approximate active firing window before the magazine is consumed.",
-    "Reloading becomes more disruptive when inactive reload time occupies a large share of repeated attack cycles.",
-    "High fire rate may improve immediate pressure while consuming the magazine sooner and increasing reload frequency.",
-    "A large magazine extends active firing time and reduces reload frequency, but it does not shorten each interruption.",
-    "Reload speed reduces inactive time directly, while magazine size mainly delays when that inactive time occurs.",
-    "A small magazine can create strong reload friction even when listed reload time is only moderate.",
-    "A large magazine may tolerate a longer reload when active firing time is substantially longer than the interruption.",
-    "Do not classify reload time as universally good or bad using a fixed duration threshold.",
-    "Do not assume fire rate is a pure sustained-output improvement when it also increases magazine consumption and reload frequency.",
-    "Conventional magazine, shell-by-shell, staged, battery, and automatic-recharge systems must be evaluated separately.",
-    "Interruptible shell-by-shell reloads may reduce practical friction because partial recovery is possible.",
-    "Battery weapons require separation between recharge delay and recharge duration when those values are supplied.",
-    "Reload improvements primarily improve continuity and usability, but they can materially affect combat performance when downtime occupies a substantial portion of the cycle."
+    "Reload friction describes how magazine recovery delays or interrupts continued operation of an attack mode.",
+    "Recovery model and friction severity must remain separate because full-magazine, incremental, regenerative, and staged systems can each produce different friction levels.",
+    "Recovery delay, partial recovery time, full recovery time, and recurrence frequency are distinct properties and must not be collapsed into one reload duration.",
+    "Active magazine duration may be estimated only when the evaluated mode has a defined and sufficiently stable magazine-consumption rate.",
+    "A standardized full-depletion cycle may support comparison, but it does not represent guaranteed practical use.",
+    "Reload friction must be evaluated separately for modes with different magazine costs, consumption patterns, or recovery models.",
+    "Comparisons between recovery models must preserve their distinct timing and interruption behavior."
   ],
   "interpretation": {
     "low": [
-      "The active firing window is much longer than the reload interruption.",
-      "Reload downtime represents a small share of the cycle."
+      "Mandatory recovery costs are limited relative to the supported active-operation scenario.",
+      "Neither interruption duration nor recurrence clearly dominates the evaluated cycle."
     ],
     "moderate": [
-      "Reloading is noticeable but does not dominate the cycle.",
-      "Additional fire rate may increase reload frequency noticeably."
+      "Magazine recovery creates noticeable friction without consistently dominating the supported operating cycle.",
+      "The explanation must identify whether the main cost is delay, duration, recurrence, or incomplete recovery."
     ],
     "high": [
-      "Reload downtime occupies a large share of the cycle.",
-      "Repeated reload interruptions are likely to break sustained pressure."
-    ],
-    "special_reload": [
-      "The reload system cannot be evaluated reliably with conventional full-magazine logic alone.",
-      "Battery or shell-by-shell behavior requires its specific supplied fields."
+      "Magazine recovery creates substantial or frequently recurring loss of active operation.",
+      "The dominant recovery cost must remain explicitly identified."
     ],
     "undetermined": [
-      "The supplied data is insufficient to compare active firing time with reload downtime."
+      "The supplied consumption rate, recovery model, or required timing fields are insufficient to classify reload friction."
+    ]
+  },
+  "conditional_exceptions": {
+    "full_magazine_recovery": [
+      "Use reload_time as the mandatory full-magazine recovery duration only when the mode uses a conventional indivisible reload.",
+      "Calculate reload cycle share only from an explicitly defined active window and required reload interruption."
+    ],
+    "incremental_recovery": [
+      "Preserve reload start time, per-unit recovery time, reload end time, and interruptibility separately when supplied.",
+      "Do not treat full-magazine refill duration as one unavoidable interruption when partial recovery permits earlier reuse."
+    ],
+    "regenerative_recovery": [
+      "Preserve regeneration delay, empty-magazine delay, and recovery rate as separate properties.",
+      "Calculate partial and full recovery times from the supplied regeneration model rather than conventional reload time.",
+      "Do not assume that regeneration begins only after complete depletion."
+    ],
+    "staged_recovery": [
+      "Preserve each mandatory, repeatable, and interruptible recovery phase separately.",
+      "Do not replace a staged profile with one aggregate duration unless the source explicitly defines that value as the complete unavoidable interruption."
+    ],
+    "empty_magazine_penalty": [
+      "Use the empty-magazine delay or recovery behavior only after complete depletion.",
+      "Do not apply the empty-state penalty to partial recovery cycles."
+    ],
+    "variable_consumption_mode": [
+      "Do not derive one fixed magazine duration when ammunition cost or event frequency changes across attack phases or conditions."
+    ],
+    "partial_magazine_use": [
+      "Treat the full-depletion cycle as a standardized upper-use scenario rather than guaranteed player behavior.",
+      "Do not report maximum reload-event frequency as practical reload frequency."
     ]
   },
   "exceptions": [
-    "Do not apply conventional magazine-duration logic directly to battery weapons.",
-    "Do not treat shell-by-shell total duration as one unavoidable interruption when it can be interrupted.",
-    "Do not infer practical fire rate when charge, burst delay, spool-up, or manual input limits it.",
-    "Do not assume multishot increases ammunition consumption unless explicitly supplied."
+    "Do not classify reload friction from reload time, magazine size, or recovery model alone.",
+    "Do not use displayed fire rate as magazine-consumption rate without a validated relationship.",
+    "Do not apply conventional full-magazine logic to incremental, regenerative, or staged recovery.",
+    "Do not assume that multishot consumes additional magazine ammunition.",
+    "Do not merge reload behavior across attack modes.",
+    "Do not compare reload cycle share across incompatible recovery models without preserving their timing differences."
   ]
 }

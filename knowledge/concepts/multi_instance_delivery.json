@@ -1,47 +1,85 @@
 {
   "id": "multi_instance_delivery",
-  "title": "Multiple delivery instances",
+  "title": "Multiple damage instances",
   "signal_fields": [
-    "base_instances_per_delivery",
-    "has_multi_instance_evidence",
-    "application_frequency"
+    "base_instance_count",
+    "instance_count_source"
   ],
   "related_stats": [
-    "fire_iterations",
-    "multishot",
     "pellet_count",
-    "burst_count",
-    "damage_components"
+    "multishot",
+    "damage_components",
+    "instance_timing"
+  ],
+  "derived_signals": [
+    "instance_count_confidence",
+    "independent_contact_instances",
+    "critical_eligible_instances",
+    "status_eligible_instances",
+    "conditional_instance_count"
   ],
   "principles": [
-    "Multiple delivery instances describe how many eligible hits or components may occur from one activation; they are not automatically additional ammunition costs.",
-    "Fire iterations, innate pellets, multishot, burst count, and separate damage components represent different mechanisms and must not be treated as interchangeable.",
-    "Several instances may increase critical and status opportunities only when those instances can independently produce valid hits.",
-    "Pellet-style delivery may concentrate on one target or spread across several targets; instance count alone does not establish group clear.",
-    "Burst count represents sequential attacks, while innate pellet or iteration count represents simultaneous or grouped delivery unless supplied data indicates otherwise.",
-    "Separate direct and radial components may both occur from one attack but can use different status, critical, or falloff rules.",
-    "The analysis should use neutral language such as instances or damage events when the source does not explicitly identify pellets or projectiles."
+    "Multiple-instance delivery describes how many potential damage instances are produced by one attack event and must remain separate from attack sequences initiated by one input activation.",
+    "Instance count, contact independence, critical eligibility, and status eligibility are distinct properties and must not be inferred from one another.",
+    "Pellets, multishot-generated instances, repeated internal events, and separate damage components must remain distinguishable by their explicit source mechanism.",
+    "A supplied instance count establishes potential multiplicity but does not establish simultaneous timing, valid contact, independent critical rolls, independent status rolls, or multi-target reach.",
+    "Separate damage components count as separate instances only when the source establishes that each component can produce an independent damage event.",
+    "Base, conditional, and externally modified instance counts must remain separate.",
+    "Use neutral terms such as instance or damage event when the source does not explicitly identify the mechanism as pellets, projectiles, beams, or another defined form."
   ],
   "interpretation": {
     "single_instance": [
-      "The supplied activation has one base delivery instance."
+      "The supplied data explicitly identify one potential damage instance for the evaluated attack event.",
+      "This classification must not be assigned solely from the absence of multi-instance evidence."
     ],
     "multiple_instances": [
-      "The supplied activation creates several potential damage instances.",
-      "Practical value depends on independent eligibility and valid contact."
+      "The attack event produces more than one potential damage instance through a supplied and traceable mechanism.",
+      "Their practical contribution depends on contact independence and per-instance eligibility."
     ],
-    "mixed_instances": [
-      "The activation combines sequential, simultaneous, or component-based instances.",
-      "Each mechanism must remain distinct."
+    "independent_contact_instances": [
+      "The supplied mechanic establishes that multiple instances can produce separate valid contacts.",
+      "Independent contact does not automatically establish independent critical or status eligibility."
+    ],
+    "multi_component_events": [
+      "The attack event contains several supplied damage components.",
+      "Count them as independent instances only when each component can produce a separate damage event."
+    ],
+    "conditional_multiplicity": [
+      "The number of instances changes under a supplied condition, state, or mechanic.",
+      "Preserve the base count, modified count, and activation condition separately."
     ],
     "undetermined": [
-      "The supplied fields do not establish how many independent valid instances occur."
+      "The supplied fields do not establish the number, source, or independence of damage instances with sufficient confidence."
+    ]
+  },
+  "conditional_exceptions": {
+    "pellet_count_present": [
+      "Treat pellet_count as explicit pellet multiplicity only when the source defines it for the evaluated attack event.",
+      "Do not assume identical spread, contact, critical eligibility, or status eligibility across all pellets."
+    ],
+    "multishot_present": [
+      "Use multishot as instance-count evidence only when its effect on the evaluated mode is explicitly defined or reliably normalized.",
+      "Do not assume that multishot always produces visible projectiles, independent contacts, or additional ammunition consumption."
+    ],
+    "fire_iterations_source_field": [
+      "When fire_iterations is the source representation of base multishot, normalize it as multishot rather than treating it as a separate instance mechanism.",
+      "Do not count both fire_iterations and multishot."
+    ],
+    "multiple_damage_components": [
+      "Preserve each component independently.",
+      "Do not count listed components as separate instances unless their independent damage-event behavior is established."
+    ],
+    "direct_and_radial_components_present": [
+      "Treat direct and radial components as independently eligible instances only when both can apply damage separately.",
+      "Do not assume shared critical chance, status chance, falloff, target eligibility, or contact behavior."
     ]
   },
   "exceptions": [
-    "Do not call fire_iterations pellets unless pellet evidence is explicit.",
-    "Do not assume multishot consumes extra ammunition.",
-    "Do not multiply status chance by instance count in the generated response.",
-    "Do not assume every damage component can critically hit or apply status independently."
+    "Do not include burst count or other sequential attack events in the per-event instance count.",
+    "Do not assume that multishot consumes additional ammunition.",
+    "Do not infer independent critical or status rolls from instance count alone.",
+    "Do not add or multiply status chance linearly by the number of instances.",
+    "Do not infer multi-target capability from instance count alone.",
+    "Do not count the same source field twice after normalization."
   ]
 }

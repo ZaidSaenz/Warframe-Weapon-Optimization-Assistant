@@ -1,47 +1,70 @@
 {
   "id": "critical_profile",
   "title": "Critical profile",
-  "related_stats": [
+  "signal_fields": [
     "critical_chance",
-    "critical_multiplier",
-    "application_frequency"
+    "critical_multiplier"
+  ],
+  "related_stats": [
+    "critical_comparison_context",
+    "critical_profile_condition"
+  ],
+  "derived_signals": [
+    "critical_tier_probability",
+    "critical_reward",
+    "minimum_guaranteed_critical_tier",
+    "next_critical_tier_chance",
+    "expected_critical_factor",
+    "critical_profile_relationship"
   ],
   "principles": [
-    "Critical chance and critical multiplier must be evaluated together as a combined damage profile.",
-    "Critical chance determines how often an eligible damage instance critically hits, while critical multiplier determines the value gained from that critical hit.",
-    "A weapon should only be described as naturally critical-oriented when both critical frequency and critical reward provide meaningful evidence.",
-    "Below 100 percent critical chance, the weapon alternates between normal and critical hits, so a high multiplier paired with low chance produces valuable but inconsistent critical events.",
-    "At 100 percent critical chance, every eligible damage instance is guaranteed to critically hit.",
-    "Critical chance above 100 percent is not wasted; each complete 100 percent interval guarantees another critical tier and the remainder determines the chance of reaching the next tier.",
-    "Higher critical tiers continue to benefit from critical multiplier, so multiplier remains relevant after critical chance exceeds 100 percent.",
-    "Expected critical contribution can be represented conceptually by the average multiplier relationship, but the final response should not perform arithmetic unless the application explicitly supplies a derived value.",
-    "Average critical contribution across many hits does not describe short-term consistency.",
-    "High critical chance with a weak multiplier indicates reliable critical activation but limited reward per critical tier.",
-    "High critical multiplier with weak critical chance indicates critical potential rather than dependable critical performance.",
-    "Critical chance and critical multiplier describe the quality of the critical profile per eligible damage instance; they do not establish total combat output without application frequency and attack behavior.",
-    "Use only supplied statistics and never infer critical guarantees, conditional bonuses, external buffs, or hidden mechanics from the weapon name."
+    "Critical chance determines the critical tier probabilities of an eligible damage instance, while critical multiplier determines the damage reward produced by those tiers.",
+    "Critical chance and critical multiplier must be evaluated together because neither statistic alone defines the complete critical profile.",
+    "Critical recurrence per eligible instance and critical reward are distinct properties and must not be treated as interchangeable.",
+    "Expected critical factor summarizes average long-run contribution per eligible instance but does not describe opportunity frequency, total output, or short-sequence consistency.",
+    "Qualitative profile classifications require an explicit comparison context and must not rely on universal critical thresholds.",
+    "Critical profiles must remain separate for attack modes, damage components, or conditional states with different supplied values."
   ],
   "interpretation": {
     "aligned": [
-      "Critical chance and critical multiplier reinforce one another.",
-      "The weapon has evidence of recurring critical activation and meaningful reward."
+      "Critical tier probability and critical reward are both favorable within the supplied comparison context.",
+      "The two properties reinforce one another at the eligible-instance level."
     ],
-    "moderate": [
-      "The critical relationship is usable but not dominant from the supplied values alone.",
-      "Critical contribution may support the weapon without defining its complete role."
+    "frequency_weighted": [
+      "Critical tier probability is more favorable than critical reward within the comparison context.",
+      "Critical events occur comparatively reliably, but each tier provides more limited additional reward."
     ],
-    "mixed": [
-      "One critical statistic is substantially more favorable than the other.",
-      "The profile may lack either consistency or reward."
+    "reward_weighted": [
+      "Critical reward is more favorable than critical tier probability within the comparison context.",
+      "Critical events can be valuable when they occur but remain less consistent across short sequences."
     ],
     "limited": [
-      "The supplied critical relationship provides limited evidence for a critical-centered role.",
-      "Critical statistics may remain secondary."
+      "Neither critical tier probability nor critical reward is favorable within the supplied comparison context.",
+      "The critical relationship provides limited evidence of a defining statistical strength."
+    ],
+    "undetermined": [
+      "Critical chance, critical multiplier, or the required comparison context is absent or incompatible.",
+      "The critical relationship cannot be classified confidently."
+    ]
+  },
+  "conditional_exceptions": {
+    "critical_chance_at_or_above_100_percent": [
+      "Every complete 100 percent of critical chance guarantees one additional critical tier for an eligible damage instance.",
+      "The remaining percentage determines the probability of reaching the next tier.",
+      "Critical multiplier remains relevant because each higher tier increases the resulting critical damage."
+    ],
+    "conditional_critical_profile": [
+      "Preserve the activation condition and evaluate the conditional critical values separately from the base profile.",
+      "Do not describe conditional critical chance or multiplier as permanently active."
+    ],
+    "multiple_critical_profiles": [
+      "Preserve separate profiles for direct, radial, chained, secondary, alternate-mode, or conditional components when their supplied statistics differ."
     ]
   },
   "exceptions": [
-    "Do not infer final damage output from critical statistics without application frequency.",
-    "Do not assume secondary, radial, chained, or special events share the same critical statistics.",
-    "Do not perform numerical critical calculations unless the application supplies the derived result."
+    "Do not infer the number or temporal frequency of critical opportunities from critical chance or critical multiplier.",
+    "Do not assume that separate attack modes, damage components, or conditional states share the same critical statistics.",
+    "Do not infer critical bonuses, guarantees, or tier behavior from the weapon name or unsupported descriptive language.",
+    "Do not use expected critical factor as evidence of short-term consistency or complete weapon output."
   ]
 }

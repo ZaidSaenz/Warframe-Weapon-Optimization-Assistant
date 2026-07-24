@@ -1,27 +1,72 @@
 {
   "id": "beam_behavior",
-  "title": "Beam behavior",
+  "title": "Beam interaction behavior",
+  "signal_fields": [
+    "uses_beam_delivery"
+  ],
   "related_stats": [
-    "damage_delivery",
-    "firing_mode",
     "beam_range",
-    "fire_rate",
-    "multishot",
-    "ammo_cost_per_damage_tick"
+    "beam_contact_model",
+    "beam_tick_frequency",
+    "beam_multishot_behavior",
+    "target_acquisition_behavior"
+  ],
+  "derived_signals": [
+    "beam_reach_defined",
+    "beam_contact_requirements",
+    "beam_application_model"
   ],
   "principles": [
-    "Beam weapons deliver damage through maintained contact rather than conventional projectile travel.",
-    "Continuous beam application should not be described as charge behavior unless charge_time or firing_mode explicitly indicates charging.",
-    "Beam range limits where maintained contact can occur and may affect practical reach without implying poor accuracy or recoil.",
-    "Do not invent internal beam tick frequency when the application does not supply it.",
-    "Multishot, chaining, radial effects, and secondary beams may create additional instances, but their exact behavior must be explicitly supplied.",
-    "A damage ramp during continuous fire should be described as progressive damage increase while maintaining the beam, not as charging the weapon.",
-    "Beam ammunition should be described as ammunition or resource consumption, not projectile consumption.",
-    "Beam comfort depends on maintained contact, firing window, reload behavior, and supplied handling fields; high fire rate alone does not prove demanding control."
+    "Beam behavior interprets the interaction properties of a component already confirmed as beam delivery and must not repeat the general delivery classification.",
+    "Beam range defines the maximum supplied reach of the component but does not establish tracking, accuracy, contact consistency, or target acquisition behavior.",
+    "Contact requirements, tick frequency, and target-retention behavior must be interpreted only when explicitly supplied.",
+    "Fire rate must not be substituted for beam tick frequency unless the source explicitly defines that relationship.",
+    "Multishot must not be interpreted as additional visible beams, independent contacts, or separate status opportunities without a documented beam-specific interaction.",
+    "Beam-specific behavior must remain separate for each attack mode or component when their range, contact, or application models differ."
   ],
+  "interpretation": {
+    "defined_reach": [
+      "The supplied beam range establishes the maximum documented reach of the evaluated component.",
+      "Practical contact within that range remains dependent on separately supplied interaction evidence."
+    ],
+    "maintained_contact": [
+      "The component requires continued valid contact to maintain its supplied application behavior.",
+      "Do not infer how quickly application stops, resets, or resumes unless those rules are documented."
+    ],
+    "discrete_beam_application": [
+      "The beam produces explicitly defined discrete damage or application events.",
+      "Use the supplied event frequency without replacing it with displayed fire rate."
+    ],
+    "multiple_beams_defined": [
+      "The supplied mechanic explicitly produces more than one beam or beam contact.",
+      "Preserve the target, damage, critical, status, and retention behavior of each beam when supplied."
+    ],
+    "limited_definition": [
+      "Beam delivery is confirmed, but only part of its reach, contact, or application behavior is defined.",
+      "Describe only the supplied properties."
+    ],
+    "undetermined": [
+      "Beam delivery is confirmed, but its specific contact, tick, acquisition, or multishot behavior cannot be determined from the supplied data."
+    ]
+  },
+  "conditional_exceptions": {
+    "charge_behavior_present": [
+      "Treat charge as an attack-rhythm property and do not redefine it as beam application behavior."
+    ],
+    "damage_ramp_present": [
+      "Treat progressive damage change as a separate mechanic and do not infer that it represents charge accumulation."
+    ],
+    "chaining_present": [
+      "Treat chaining as a separate propagation mechanic and do not classify chained targets as radial coverage or additional beams without explicit evidence."
+    ],
+    "radial_component_present": [
+      "Evaluate the radial component independently from the beam component."
+    ]
+  },
   "exceptions": [
-    "Do not discuss projectile speed for beam delivery.",
-    "Do not infer perfect target contact from continuous delivery.",
-    "Do not assume chained or secondary beams preserve full primary-beam damage."
+    "Do not infer beam tick frequency from fire rate or beam classification.",
+    "Do not infer perfect, uninterrupted, or automatically tracked contact.",
+    "Do not infer additional beams or independent applications from multishot alone.",
+    "Do not infer target-retention, contact-reset, acquisition, or damage-retention rules when absent."
   ]
 }

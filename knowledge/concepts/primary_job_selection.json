@@ -2,67 +2,99 @@
   "id": "primary_job_selection",
   "title": "Primary job selection",
   "signal_fields": [
-    "damage_behavior",
-    "target_profile",
-    "critical_relationship",
-    "status_relationship",
-    "attack_behavior",
-    "mechanic_profile",
-    "weapon_category"
+    "job_candidate_records"
   ],
   "related_stats": [
-    "application_frequency",
-    "attack_mode_count",
-    "base_instances_per_delivery",
-    "range",
-    "explosion_radius",
-    "chain_targets",
-    "heavy_attack_damage",
-    "heavy_attack_wind_up"
+    "analysis_relevant_modes",
+    "whole_weapon_relevance_criterion"
+  ],
+  "derived_signals": [
+    "eligible_job_candidates",
+    "candidate_dominance",
+    "candidate_evidence_completeness",
+    "primary_job",
+    "primary_job_confidence",
+    "supporting_mode_ids",
+    "secondary_job_records"
   ],
   "principles": [
-    "The primary job must describe the complete practical attack pattern rather than the single strongest isolated statistic.",
-    "Sustained damage requires repeated useful pressure across firing and reload cycles; a sustained rhythm alone does not automatically make it the primary job.",
-    "Focused damage requires evidence that the attack pattern concentrates value on one target without stronger multi-target or precision evidence.",
-    "Group clear requires reliable multi-target reach through radial, chaining, spread, Punch Through, or another supplied mechanism.",
-    "Area control requires evidence that the weapon influences space, movement, persistent zones, grouping, or repeated area denial; radial damage alone is insufficient.",
-    "Status application should be primary only when both status relationship and repeated valid application opportunities are central to the attack pattern.",
-    "Precision attacks require explicit accuracy, scoped, weak-point, headshot, or equivalent evidence and must not be inferred from semi-automatic behavior alone.",
-    "Heavy attacks apply only to melee or equivalent supplied heavy-attack behavior and require explicit heavy-attack evidence.",
-    "General use is appropriate when no more specific job is clearly supported or when several profiles are balanced without a dominant pattern.",
-    "For multi-mode weapons, choose the job of the dominant practical mode and mention materially different secondary roles separately."
+    "The primary job must summarize the best-supported practical attack pattern rather than an isolated statistic, mechanic, or attack-family field.",
+    "Each job candidate must preserve its supporting evidence, relevant modes, conditions, restrictions, centrality, and confidence.",
+    "A candidate may be selected as primary only when positive evidence supports both its practical function and its dominance over competing candidates.",
+    "Capability, centrality, reliability, and evidence completeness must remain separate properties.",
+    "A highly conditional, incidental, or weakly supported capability must not become the primary job merely because no stronger label is available.",
+    "Secondary jobs must remain traceable to the modes and conditions that support them.",
+    "Use general_use for a genuinely broad or balanced practical profile, and use undetermined when the evidence is insufficient to identify a primary job."
   ],
   "interpretation": {
     "sustained_damage": [
-      "Repeated pressure across complete firing cycles is the best-supported function."
+      "Repeated useful pressure across complete active and interruption cycles is the dominant supported function.",
+      "Sustained input, automatic repetition, or high fire rate alone is insufficient."
     ],
     "focused_damage": [
-      "The supplied attack pattern primarily concentrates damage on individual targets."
+      "The attack pattern provides positive evidence of concentrating useful offensive value on one target or a narrowly defined target set.",
+      "Absence of multi-target behavior alone is insufficient."
     ],
     "group_clear": [
-      "The supplied delivery reliably reaches multiple enemies as a central function."
+      "Applying useful damage to several targets is central and repeatedly supported by explicit multi-target mechanics.",
+      "Potential target reach without sufficient mechanical confidence is insufficient."
     ],
     "area_control": [
-      "The supplied mechanic influences or denies space beyond simply damaging several enemies."
+      "The attack pattern persistently, repeatedly, or conditionally influences a spatial region beyond a single damage event.",
+      "Radial damage and multi-target reach alone are insufficient."
     ],
     "status_application": [
-      "Repeated valid status application is the dominant supported function."
+      "Repeated eligible status opportunities and a favorable status relationship define the dominant practical pattern.",
+      "Status chance or instance count alone is insufficient."
     ],
     "precision_attacks": [
-      "Explicit precision or weak-point evidence defines the practical role."
+      "An explicit mechanical benefit or requirement tied to weak points, headshots, scoped hits, target locking, or another defined precision interaction dominates the attack pattern.",
+      "Accuracy, zoom, lock-on, or semi-automatic rhythm without a supported precision benefit is insufficient."
     ],
     "heavy_attacks": [
-      "Explicit heavy-attack evidence defines the melee role."
+      "Heavy attacks are comparatively better supported than other melee attack families and define the practical use pattern.",
+      "Generic heavy-attack fields, high heavy damage, or wind-up alone are insufficient."
     ],
     "general_use": [
-      "No narrower role is sufficiently dominant from the supplied evidence."
+      "Several practical functions have comparable support, or the attack pattern is intentionally broad without one clearly dominant specialization.",
+      "This classification does not imply equal effectiveness across all jobs."
+    ],
+    "undetermined": [
+      "The available candidate evidence is incomplete, conflicting, or insufficient to establish a dominant practical function.",
+      "Do not substitute general_use for missing evidence."
+    ]
+  },
+  "conditional_exceptions": {
+    "multiple_relevant_modes": [
+      "Use an explicit whole-weapon relevance criterion before selecting one mode's job as the weapon-level primary job.",
+      "Preserve materially different functions from other relevant modes as secondary job records."
+    ],
+    "balanced_job_candidates": [
+      "Use general_use only when several candidates have comparable positive evidence and together form a broad practical profile.",
+      "Use undetermined instead when the apparent balance results from incomplete evidence."
+    ],
+    "conditional_job_candidate": [
+      "Preserve the candidate's activation conditions and restrictions.",
+      "Reduce its dominance or retain it as secondary when the condition is not representative of normal operation."
+    ],
+    "low_confidence_candidate": [
+      "Do not select the candidate as primary solely from high theoretical potential.",
+      "Preserve uncertainty when activation, target reach, component eligibility, or practical repetition is insufficiently defined."
+    ],
+    "shared_primary_evidence": [
+      "When two candidates depend on the same evidence but describe different semantic dimensions, select the one that best represents the declared analysis taxonomy.",
+      "Do not combine them into an unsupported hybrid label."
     ]
   },
   "exceptions": [
-    "Do not select group_clear from an aoe tag alone.",
-    "Do not select area_control from radial damage alone.",
+    "Do not select sustained_damage from sustained rhythm, automatic input, beam delivery, or high fire rate alone.",
+    "Do not select focused_damage solely from the absence of multi-target evidence.",
+    "Do not select group_clear from an aoe label, radius, chaining flag, Punch Through value, pellet count, or theoretical target limit alone.",
+    "Do not select area_control from radial damage, persistent visuals, or multi-target capability alone.",
     "Do not select status_application from status chance alone.",
-    "Do not select precision_attacks from accuracy or semi-automatic behavior alone without precision evidence.",
-    "Do not select heavy_attacks merely because generic heavy-attack fields exist for every melee weapon."
+    "Do not select precision_attacks from accuracy, zoom, projectile delivery, lock-on, or semi-automatic behavior without an explicit precision relationship.",
+    "Do not select heavy_attacks merely because heavy-attack records exist.",
+    "Do not merge evidence or jobs across modes without an explicit whole-weapon relevance criterion.",
+    "Do not treat the primary job as a statement of weapon power, quality, or optimality."
   ]
 }

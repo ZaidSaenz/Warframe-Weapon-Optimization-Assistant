@@ -2,92 +2,139 @@
   "id": "improvement_selection",
   "title": "Improvement selection",
   "signal_fields": [
-    "critical_relationship",
-    "status_relationship",
-    "reload_friction",
-    "handling_friction",
-    "damage_behavior",
-    "target_profile"
+    "improvement_candidates",
+    "allowed_improvement_parameters"
   ],
   "related_stats": [
-    "critical_chance",
-    "critical_multiplier",
-    "status_chance",
-    "base_damage",
-    "fire_rate",
-    "multishot",
-    "magazine_size",
-    "reload_time",
-    "accuracy"
+    "supported_role",
+    "mode_id",
+    "component_id"
+  ],
+  "derived_signals": [
+    "eligible_improvement_candidates",
+    "selected_improvements",
+    "improvement_priority",
+    "improvement_confidence"
   ],
   "valid_parameter_directions": {
     "critical_chance": [
-      "reinforce"
+      "increase"
     ],
     "critical_multiplier": [
-      "reinforce"
+      "increase"
     ],
     "status_chance": [
-      "reinforce"
+      "increase"
     ],
     "base_damage": [
-      "reinforce"
+      "increase"
     ],
     "fire_rate": [
-      "reinforce"
+      "increase"
     ],
     "multishot": [
-      "reinforce"
+      "increase"
     ],
     "magazine_size": [
-      "reinforce",
-      "correct_friction"
+      "increase"
     ],
     "reload_time": [
-      "correct_friction"
+      "reduce"
     ],
     "accuracy": [
-      "correct_friction"
+      "increase"
+    ],
+    "spread": [
+      "reduce"
+    ],
+    "recoil": [
+      "reduce"
     ],
     "none": [
       "none"
     ]
   },
   "principles": [
-    "Every improvement must be traceable to a supplied strength, limitation, or supported role.",
-    "Reinforce means increasing a parameter that already supports the selected role or a demonstrated strength.",
-    "Correct friction means reducing a demonstrated operational limitation without redefining the weapon's intrinsic mechanic.",
-    "Critical chance and critical multiplier reinforce a supported critical profile; neither should be used to correct reload, ammunition, accuracy, or handling friction.",
-    "Status chance reinforces supported status application but does not correct target contact, ammunition, or reload friction.",
-    "Base damage is a general reinforcement parameter and must never be labeled as correcting operational friction.",
-    "Fire rate can reinforce repeated pressure or application frequency, but it may worsen magazine, reload, or ammunition pressure.",
-    "Multishot can reinforce delivery instances when valid, but it must not be described as an ammunition-efficiency correction.",
-    "Magazine size can reinforce sustained pressure or correct frequent reload interruption by extending the active firing window.",
-    "Reload time corrects supported reload friction by shortening downtime.",
-    "Accuracy can correct supported contact or spread friction only when accuracy-related evidence exists.",
-    "Use none when no allowed parameter has a supported and semantically valid relationship."
+    "Every selected improvement must be supported by a traceable causal relationship between the parameter and a demonstrated strength, limitation, or intended function.",
+    "Reinforcement strengthens an already supported statistical or mechanical relationship, while friction correction reduces a demonstrated operational limitation.",
+    "Parameter direction and improvement purpose must remain separate because increasing, reducing, or otherwise improving a value does not determine why it was selected.",
+    "A parameter must be valid for the evaluated attack mode, damage component, and mechanic.",
+    "A generally beneficial statistic must not be selected when a more specific supported relationship is absent.",
+    "Tradeoffs must remain attached to the candidate they affect and must be considered before assigning priority.",
+    "Use none when no allowed candidate has sufficient evidence, causal relevance, and mode compatibility."
   ],
   "interpretation": {
     "reinforce_strength": [
-      "Choose a parameter already aligned with the supported role or strength."
+      "The candidate directly strengthens a supported statistical or mechanical relationship.",
+      "The explanation must identify the relationship being reinforced."
     ],
     "correct_operational_friction": [
-      "Choose only a parameter that directly reduces the supplied friction."
+      "The candidate directly reduces a supported interruption, handling limitation, or contact problem.",
+      "The explanation must identify the friction and the causal effect of the parameter."
     ],
-    "tradeoff_required": [
-      "The improvement may reinforce one function while worsening another supplied limitation.",
-      "The reason must mention the relevant tradeoff."
+    "conditional_improvement": [
+      "The candidate is beneficial only under a supplied mode, component, activation state, or usage condition.",
+      "Preserve that condition in the recommendation."
     ],
     "none": [
-      "No allowed parameter has sufficient evidence or semantic compatibility."
+      "No allowed candidate has enough evidence or semantic compatibility to justify selection."
+    ]
+  },
+  "conditional_exceptions": {
+    "critical_chance": [
+      "Select only when increasing critical tier probability directly supports the evaluated critical profile.",
+      "Do not treat a lower critical chance relative to multiplier as an automatic deficiency."
+    ],
+    "critical_multiplier": [
+      "Select only when additional critical reward directly supports a profile with meaningful critical activation.",
+      "Do not select it from multiplier value alone."
+    ],
+    "status_chance": [
+      "Select only when eligible status instances and application frequency support additional status probability.",
+      "Do not use it to correct contact, reload, or ammunition friction."
+    ],
+    "base_damage": [
+      "Select only as an explicitly permitted general offensive reinforcement when no more specific candidate has stronger causal evidence.",
+      "Prefer none over base damage when the only justification is that more damage is generally beneficial."
+    ],
+    "fire_rate": [
+      "Select only when the supplied mode permits increased attack or application frequency through this parameter.",
+      "Preserve tradeoffs involving ammunition pressure, reload frequency, recoil, contact demands, charge timing, burst cycling, or spool-up."
+    ],
+    "multishot": [
+      "Select only when the evaluated mode has an explicitly supported multishot interaction.",
+      "Do not assume identical effects across projectile, beam, radial, chained, or special components."
+    ],
+    "magazine_size": [
+      "Use as reinforcement when a longer active window directly supports the evaluated behavior.",
+      "Use as friction correction when frequent depletion is a demonstrated source of reload interruption."
+    ],
+    "reload_time": [
+      "Select reduction only when reload downtime is a demonstrated source of friction.",
+      "Do not apply conventional reload-time logic to incremental or regenerative recovery without a compatible model."
+    ],
+    "accuracy": [
+      "Select only when supplied accuracy evidence identifies a correctable contact limitation.",
+      "Do not use accuracy as a substitute for recoil, spread, projectile travel, beam range, or target tracking."
+    ],
+    "spread": [
+      "Select reduction only when supplied spread evidence limits valid contact or instance concentration.",
+      "Do not infer spread friction from pellet count alone."
+    ],
+    "recoil": [
+      "Select reduction only when explicit recoil evidence identifies a repeated control or contact limitation.",
+      "Do not infer recoil from fire rate or accuracy values."
+    ],
+    "multiple_candidates": [
+      "Order candidates by causal specificity, relevance to the evaluated function, tradeoff severity, and evidence confidence.",
+      "Do not treat all eligible candidates as equally important."
     ]
   },
   "exceptions": [
-    "Do not pair base_damage with correct_friction.",
-    "Do not pair critical or status parameters with correct_friction.",
-    "Do not recommend accuracy when no accuracy, spread, recoil, or contact limitation is supplied.",
-    "Do not recommend fire rate as a pure improvement when reload or ammunition pressure is already elevated.",
-    "Do not recommend changing chaining, radial behavior, charge behavior, burst count, or another intrinsic mechanic.",
-    "Do not use a parameter absent from allowed_improvement_parameters."
+    "Do not recommend changing chaining, radial behavior, charge structure, burst count, trigger behavior, or another intrinsic mechanic.",
+    "Do not select a parameter absent from allowed_improvement_parameters.",
+    "Do not infer strategic relevance merely because a parameter can be numerically improved.",
+    "Do not merge recommendations across attack modes or components with different parameter effects.",
+    "Do not use a supported role as the sole evidence for selecting a parameter."
   ]
 }

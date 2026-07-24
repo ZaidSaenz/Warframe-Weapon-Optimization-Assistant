@@ -1,28 +1,94 @@
 {
   "id": "multi_target_delivery",
   "title": "Multi-target delivery",
+  "signal_fields": [
+    "multi_target_mechanic_records"
+  ],
   "related_stats": [
-    "is_explosive",
-    "explosion_radius",
-    "punch_through",
-    "pellet_count",
-    "chain_targets",
+    "mode_id",
+    "component_id",
+    "radial_radius",
+    "radial_falloff",
+    "chain_additional_target_count",
     "chain_range",
-    "special_mechanic"
+    "chain_range_origin",
+    "chain_damage_retention",
+    "punch_through_depth",
+    "distributed_instance_profile"
+  ],
+  "derived_signals": [
+    "multi_target_mechanisms",
+    "explicit_target_limit",
+    "target_limit_model",
+    "spatial_restrictions",
+    "damage_retention_model",
+    "mechanical_target_reach_confidence"
   ],
   "principles": [
-    "Multi-target capability requires explicit evidence such as explosion, radial reach, Punch Through, chaining, spread, or another supplied mechanic.",
-    "The primary job may be group_clear when the complete attack pattern reliably reaches several enemies rather than only describing a sustained firing rhythm.",
-    "Multi-target capability does not automatically imply area control; area control requires evidence that the weapon influences space, movement, or repeated zones.",
-    "Chaining should be evaluated from the supplied number of additional targets, chain range, and damage decay when available.",
-    "Punch Through can allow one attack path to affect multiple aligned targets, but it does not provide radial coverage.",
-    "Pellet spread may affect several nearby targets, but it can also concentrate on one target; do not classify reliable group clear without supporting evidence.",
-    "Explosion radius describes spatial reach, while falloff or secondary restrictions determine retained value.",
-    "Do not infer multi-target behavior from the mere presence of a special mechanic; the text or structured fields must explicitly support it."
+    "Multi-target delivery describes explicit mechanisms that allow one attack mode to apply valid damage to more than one target.",
+    "Radial coverage, chained propagation, linear penetration, and distributed instances are distinct mechanisms and must remain separately traceable.",
+    "Target count, spatial reach, geometric restrictions, and retained damage are separate properties and must not be collapsed into one multi-target score.",
+    "A fixed target limit may be derived only when the mechanic explicitly supplies one; radial coverage and Punch Through do not inherently provide a fixed enemy count.",
+    "Instance multiplicity supports multi-target delivery only when independently validated distribution, trajectory, spread, or targeting evidence allows different targets to be reached.",
+    "Multi-target capability does not by itself establish group-clear reliability, area control, or equal value across reached targets.",
+    "Each mechanism must remain associated with the attack mode and damage component that supplies its evidence."
   ],
+  "interpretation": {
+    "radial_coverage": [
+      "An explicit radial component can apply damage within a supplied spatial region around its origin.",
+      "Radius, falloff, line-of-sight behavior, and other spatial restrictions must remain separately represented when supplied."
+    ],
+    "chained_propagation": [
+      "The attack explicitly propagates from an initial target to one or more additional targets.",
+      "Additional target count, chain range, range origin, and damage retention must remain separate."
+    ],
+    "linear_penetration": [
+      "An eligible attack component can continue through targets or surfaces along its path.",
+      "Multi-target reach remains conditional on alignment, collision eligibility, and available Punch Through depth rather than a fixed target count."
+    ],
+    "distributed_instances": [
+      "Several independently validated instances can be distributed across different targets through supplied spread, trajectory, targeting, or allocation behavior.",
+      "Instance count alone is insufficient."
+    ],
+    "combined_multi_target": [
+      "The evaluated mode contains more than one supported multi-target mechanism.",
+      "Do not merge their target limits, spatial restrictions, origins, or damage-retention rules."
+    ],
+    "explicit_single_target": [
+      "The supplied mechanic explicitly restricts the evaluated component to one valid target.",
+      "This classification requires positive limiting evidence and must not be inferred from absent multi-target fields."
+    ],
+    "undetermined": [
+      "The supplied evidence does not establish whether or how the evaluated mode can apply valid damage to more than one target."
+    ]
+  },
+  "conditional_exceptions": {
+    "radial_component_present": [
+      "Do not assume uniform damage, unlimited enemy count, unobstructed coverage, or explosion behavior.",
+      "Associate radius and falloff only with the radial component that supplies them."
+    ],
+    "chaining_present": [
+      "Interpret chain target count as additional targets only when the source explicitly excludes the initial target.",
+      "Do not assume equal damage across targets or constant retention across every propagation step."
+    ],
+    "punch_through_present": [
+      "Treat Punch Through as penetration depth rather than a guaranteed number of targets.",
+      "Do not assume that a related radial component follows the penetrating projectile or activates at every penetrated target."
+    ],
+    "distributed_instance_profile_present": [
+      "Use distributed instances as multi-target evidence only when independent contact and cross-target distribution are supported.",
+      "Do not infer distribution from pellet count, multishot, or spread terminology alone."
+    ],
+    "multiple_mechanisms_present": [
+      "Preserve a separate record for each mechanism and affected component.",
+      "Do not use one mechanism's target count, range, or retention rules to fill another mechanism's missing values."
+    ]
+  },
   "exceptions": [
-    "Do not treat every special mechanic as area or chaining evidence.",
-    "Do not assume chained targets receive full primary-target damage.",
-    "Do not call a weapon area_control solely because it can damage more than one enemy."
+    "Do not infer multi-target delivery from a generic aoe, explosive, or special-mechanic label without explicit mechanical evidence.",
+    "Do not infer group-clear or area-control function from multi-target capability alone.",
+    "Do not assume that all reached targets share identical damage, critical, status, falloff, or eligibility behavior.",
+    "Do not convert Punch Through depth, radial radius, or instance count into a universal target count.",
+    "Do not merge multi-target evidence across separate attack modes or damage components."
   ]
 }
