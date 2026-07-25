@@ -84,3 +84,14 @@ models/*.safetensors
 data/raw/ExportWeapons.json
 data/raw/ExportWeapons.metadata.json
 data/raw/backups/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime logs
+logs/*.log
+
+# Local models
+models/*.gguf
