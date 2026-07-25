@@ -84,44 +84,61 @@ def sample_weapon() -> dict:
     }
 
 
-def test_interpreter_creates_expected_signals():
+def test_interpreter_creates_expected_v6_signals() -> None:
     interpretation = interpret_weapon(
         sample_weapon()
     )
 
-    assert interpretation[
-        "weapon_category"
-    ] == "primary"
+    flat = interpretation[
+        "flat_signals"
+    ]
 
-    assert interpretation[
-        "critical_relationship"
-    ] == "aligned"
+    assert (
+        interpretation[
+            "interpretation_version"
+        ]
+        == 6
+    )
+    assert flat["weapon_category"] == "primary"
+    assert flat["critical_profile_present"] is True
+    assert flat["critical_chance"] == 30
+    assert flat["critical_multiplier"] == 3
+    assert flat["status_profile_present"] is True
+    assert flat["has_repeatable_attack_cycle"] is True
+    assert (
+        flat[
+            "mechanical_application_continuity_present"
+        ]
+        is True
+    )
+    assert (
+        flat[
+            "multi_target_mechanic_records_present"
+        ]
+        is False
+    )
 
-    assert interpretation[
-        "status_relationship"
-    ] == "limited"
 
-    assert interpretation[
-        "damage_behavior"
-    ] == "sustained"
-
-    assert interpretation[
-        "target_profile"
-    ] == "single_target"
-
-
-def test_prepare_weapon_analysis_uses_normalized_weapon():
+def test_prepare_weapon_analysis_uses_v6_interpretation() -> None:
     prepared = prepare_weapon_analysis(
         sample_weapon()
     )
 
-    assert prepared[
-        "weapon_data"
-    ]["display_name"] == "Control Weapon"
+    assert (
+        prepared["weapon_data"]["display_name"]
+        == "Control Weapon"
+    )
 
-    assert prepared[
+    interpretation = prepared[
         "interpretation"
-    ]["weapon_category"] == "primary"
+    ]
+
+    assert (
+        interpretation[
+            "flat_signals"
+        ]["weapon_category"]
+        == "primary"
+    )
 
     assert isinstance(
         prepared["activated_concepts"],
@@ -139,44 +156,61 @@ def test_prepare_weapon_analysis_uses_normalized_weapon():
     )
 
 
-def test_rule_engine_and_retriever_work_together():
+def test_rule_engine_and_retriever_support_v6_contract() -> None:
     interpretation = {
-        "critical_relationship": "aligned",
-        "status_relationship": "limited",
-        "reload_friction": "moderate",
-        "damage_behavior": "sustained",
+        "signals": {
+            "critical_profile_present": {
+                "value": True,
+                "confidence": "derived",
+                "source_paths": [
+                    "root_stats.critical_chance_percent",
+                    "root_stats.critical_multiplier",
+                ],
+                "reason": None,
+            },
+            "reload_time": {
+                "value": 2.0,
+                "confidence": "structured",
+                "source_paths": [
+                    "shared_stats.reload_time",
+                ],
+                "reason": None,
+            },
+        },
+        "flat_signals": {
+            "critical_profile_present": True,
+            "reload_time": 2.0,
+        },
     }
 
     rules = [
         {
             "id": "critical",
-            "match": "all",
             "conditions": [
                 {
-                    "field": "critical_relationship",
+                    "field": "critical_profile_present",
                     "operator": "equals",
-                    "value": "aligned",
-                }
-            ],
-            "retrieve": [
-                "critical_profile"
-            ],
-        },
-        {
-            "id": "reload",
-            "match": "all",
-            "conditions": [
-                {
-                    "field": "reload_friction",
-                    "operator": "in",
-                    "value": [
-                        "moderate",
-                        "high",
+                    "value": True,
+                    "confidence_in": [
+                        "derived",
                     ],
                 }
             ],
             "retrieve": [
-                "reload_friction"
+                "critical_profile",
+            ],
+        },
+        {
+            "id": "reload",
+            "conditions": [
+                {
+                    "field": "reload_time",
+                    "operator": "greater_than",
+                    "value": 0,
+                }
+            ],
+            "retrieve": [
+                "reload_friction",
             ],
         },
     ]
@@ -197,8 +231,8 @@ def test_rule_engine_and_retriever_work_together():
             "title": "Reload friction",
             "principles": [
                 (
-                    "Reload time must be evaluated "
-                    "relative to magazine duration."
+                    "Reload interruption must be "
+                    "evaluated from supported cycle data."
                 )
             ],
         },
@@ -214,21 +248,40 @@ def test_rule_engine_and_retriever_work_together():
         concepts,
     )
 
-    context = build_analysis_context(
-        interpretation,
-        retrieved,
-    )
-
     assert concept_ids == [
         "critical_profile",
         "reload_friction",
     ]
-
     assert len(retrieved) == 2
+
+
+def test_context_builder_legacy_surface_remains_available() -> None:
+    interpretation = {
+        "critical_relationship": "aligned",
+        "reload_friction": "moderate",
+    }
+
+    knowledge = [
+        {
+            "id": "critical_profile",
+            "title": "Critical profile",
+            "principles": [
+                (
+                    "Critical chance and critical "
+                    "multiplier must be evaluated "
+                    "together."
+                )
+            ],
+        }
+    ]
+
+    context = build_analysis_context(
+        interpretation,
+        knowledge,
+    )
 
     assert (
         "DETERMINISTIC INTERPRETATION"
         in context
     )
-
     assert "RELEVANT KNOWLEDGE" in context

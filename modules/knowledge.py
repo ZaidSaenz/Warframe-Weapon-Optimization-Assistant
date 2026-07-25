@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from modules.rule_engine import validate_rules
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_KNOWLEDGE_PATH = PROJECT_ROOT / "knowledge"
@@ -28,19 +30,21 @@ def _load_json_file(
     path: Path,
 ) -> dict[str, Any]:
     try:
-        data = json.loads(
-            path.read_text(
-                encoding="utf-8"
-            )
+        raw_text = path.read_text(
+            encoding="utf-8"
         )
+        data = json.loads(raw_text)
+
     except FileNotFoundError as error:
         raise KnowledgeLoadError(
             f"Knowledge file not found: {path}"
         ) from error
+
     except OSError as error:
         raise KnowledgeLoadError(
             f"Could not read knowledge file: {path}"
         ) from error
+
     except json.JSONDecodeError as error:
         raise KnowledgeLoadError(
             f"Invalid JSON in {path}: "
@@ -57,11 +61,129 @@ def _load_json_file(
     return data
 
 
+def _normalize_string_list(
+    value: Any,
+    *,
+    field_name: str,
+    path: Path,
+    required: bool = False,
+) -> list[str]:
+    if value is None:
+        if required:
+            raise KnowledgeLoadError(
+                f"`{field_name}` is required: {path}"
+            )
+        return []
+
+    if (
+        not isinstance(value, list)
+        or not all(
+            isinstance(item, str)
+            and item.strip()
+            for item in value
+        )
+    ):
+        raise KnowledgeLoadError(
+            f"`{field_name}` must be a list "
+            f"of non-empty strings: {path}"
+        )
+
+    return [
+        item.strip()
+        for item in value
+    ]
+
+
+def _normalize_interpretation(
+    value: Any,
+    *,
+    path: Path,
+) -> dict[str, list[str]]:
+    if value is None:
+        return {}
+
+    if not isinstance(value, Mapping):
+        raise KnowledgeLoadError(
+            f"`interpretation` must be an object: {path}"
+        )
+
+    normalized: dict[str, list[str]] = {}
+
+    for raw_key, raw_items in value.items():
+        if (
+            not isinstance(raw_key, str)
+            or not raw_key.strip()
+        ):
+            raise KnowledgeLoadError(
+                "Interpretation keys must be "
+                f"non-empty strings: {path}"
+            )
+
+        normalized[raw_key.strip()] = (
+            _normalize_string_list(
+                raw_items,
+                field_name=(
+                    "interpretation."
+                    f"{raw_key}"
+                ),
+                path=path,
+                required=True,
+            )
+        )
+
+    return normalized
+
+
+def _normalize_conditional_exceptions(
+    value: Any,
+    *,
+    path: Path,
+) -> dict[str, list[str]]:
+    if value is None:
+        return {}
+
+    if not isinstance(value, Mapping):
+        raise KnowledgeLoadError(
+            "`conditional_exceptions` must "
+            f"be an object: {path}"
+        )
+
+    normalized: dict[str, list[str]] = {}
+
+    for raw_key, raw_items in value.items():
+        if (
+            not isinstance(raw_key, str)
+            or not raw_key.strip()
+        ):
+            raise KnowledgeLoadError(
+                "Conditional-exception keys "
+                f"must be non-empty strings: {path}"
+            )
+
+        normalized[raw_key.strip()] = (
+            _normalize_string_list(
+                raw_items,
+                field_name=(
+                    "conditional_exceptions."
+                    f"{raw_key}"
+                ),
+                path=path,
+                required=True,
+            )
+        )
+
+    return normalized
+
+
 def load_concepts(
     concepts_path: Path | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
-    Load concept files and index them by their unique ``id``.
+    Load concept files and index them by their unique `id`.
+
+    The loader validates both the current concept schema and the planned
+    compact schema with optional `signal_fields`, `interpretation`,
+    `conditional_exceptions`, and `exceptions`.
     """
     directory = (
         concepts_path
@@ -78,9 +200,7 @@ def load_concepts(
     for path in sorted(
         directory.glob("*.json")
     ):
-        concept = _load_json_file(
-            path
-        )
+        concept = _load_json_file(path)
         concept_id = concept.get("id")
 
         if (
@@ -99,30 +219,60 @@ def load_concepts(
                 f"Duplicate concept id: {normalized_id}"
             )
 
-        principles = concept.get(
-            "principles",
-            [],
-        )
-
-        if (
-            not isinstance(principles, list)
-            or not all(
-                isinstance(item, str)
-                and item.strip()
-                for item in principles
-            )
-        ):
-            raise KnowledgeLoadError(
-                "`principles` must be a list "
-                f"of non-empty strings: {path}"
-            )
-
         normalized = dict(concept)
         normalized["id"] = normalized_id
-        normalized["principles"] = [
-            item.strip()
-            for item in principles
-        ]
+        normalized["principles"] = (
+            _normalize_string_list(
+                concept.get("principles", []),
+                field_name="principles",
+                path=path,
+            )
+        )
+
+        if "title" in concept:
+            title = concept.get("title")
+            if (
+                not isinstance(title, str)
+                or not title.strip()
+            ):
+                raise KnowledgeLoadError(
+                    "`title` must be a non-empty "
+                    f"string when present: {path}"
+                )
+            normalized["title"] = title.strip()
+
+        for field_name in (
+            "signal_fields",
+            "related_stats",
+            "derived_signals",
+            "exceptions",
+        ):
+            if field_name in concept:
+                normalized[field_name] = (
+                    _normalize_string_list(
+                        concept.get(field_name),
+                        field_name=field_name,
+                        path=path,
+                    )
+                )
+
+        if "interpretation" in concept:
+            normalized["interpretation"] = (
+                _normalize_interpretation(
+                    concept.get("interpretation"),
+                    path=path,
+                )
+            )
+
+        if "conditional_exceptions" in concept:
+            normalized[
+                "conditional_exceptions"
+            ] = _normalize_conditional_exceptions(
+                concept.get(
+                    "conditional_exceptions"
+                ),
+                path=path,
+            )
 
         concepts[normalized_id] = normalized
 
@@ -139,7 +289,10 @@ def load_rules(
     rules_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Load every rule file and merge their ``rules`` arrays.
+    Load every rule file and merge their `rules` arrays.
+
+    Structural validation is delegated to `rule_engine.validate_rules` so
+    loading and evaluation share one contract.
     """
     directory = (
         rules_path
@@ -152,61 +305,38 @@ def load_rules(
         )
 
     rules: list[dict[str, Any]] = []
-    rule_ids: set[str] = set()
 
     for path in sorted(
         directory.glob("*.json")
     ):
-        document = _load_json_file(
-            path
-        )
-        file_rules = document.get(
-            "rules",
-            [],
-        )
+        document = _load_json_file(path)
+        file_rules = document.get("rules", [])
 
         if not isinstance(file_rules, list):
             raise KnowledgeLoadError(
                 f"`rules` must be a list: {path}"
             )
 
-        for index, rule in enumerate(
-            file_rules
-        ):
+        for index, rule in enumerate(file_rules):
             if not isinstance(rule, dict):
                 raise KnowledgeLoadError(
                     "Every rule must be an object: "
                     f"{path} at index {index}"
                 )
 
-            rule_id = rule.get("id")
-
-            if (
-                not isinstance(rule_id, str)
-                or not rule_id.strip()
-            ):
-                raise KnowledgeLoadError(
-                    "Every rule requires a "
-                    f"non-empty string `id`: {path}"
-                )
-
-            normalized_id = rule_id.strip()
-
-            if normalized_id in rule_ids:
-                raise KnowledgeLoadError(
-                    f"Duplicate rule id: {normalized_id}"
-                )
-
-            rule_ids.add(normalized_id)
-
-            normalized = dict(rule)
-            normalized["id"] = normalized_id
-            rules.append(normalized)
+            rules.append(dict(rule))
 
     if not rules:
         raise KnowledgeLoadError(
             f"No rules found in: {directory}"
         )
+
+    try:
+        validate_rules(rules)
+    except ValueError as error:
+        raise KnowledgeLoadError(
+            f"Invalid rule structure: {error}"
+        ) from error
 
     return rules
 
@@ -222,13 +352,36 @@ def load_knowledge_base(
         or DEFAULT_KNOWLEDGE_PATH
     )
 
+    concepts = load_concepts(
+        base_path / "concepts"
+    )
+    rules = load_rules(
+        base_path / "rules"
+    )
+
+    referenced_concepts = {
+        concept_id
+        for rule in rules
+        for concept_id in rule.get(
+            "retrieve",
+            [],
+        )
+    }
+
+    missing_concepts = sorted(
+        referenced_concepts
+        - concepts.keys()
+    )
+
+    if missing_concepts:
+        raise KnowledgeLoadError(
+            "Rules reference missing concepts: "
+            + ", ".join(missing_concepts)
+        )
+
     return {
-        "concepts": load_concepts(
-            base_path / "concepts"
-        ),
-        "rules": load_rules(
-            base_path / "rules"
-        ),
+        "concepts": concepts,
+        "rules": rules,
     }
 
 
@@ -242,10 +395,10 @@ def retrieve_knowledge(
     strict: bool = True,
 ) -> list[dict[str, Any]]:
     """
-    Return concepts in the requested order without duplicates.
+    Return concepts in requested order without duplicates.
 
-    With ``strict=True``, a missing concept raises
-    ``KnowledgeRetrievalError``. With ``strict=False``, it is skipped.
+    With `strict=True`, a missing concept raises
+    `KnowledgeRetrievalError`. With `strict=False`, it is skipped.
     """
     if isinstance(
         concept_ids,
@@ -278,9 +431,7 @@ def retrieve_knowledge(
         if concept_id in seen:
             continue
 
-        concept = concepts.get(
-            concept_id
-        )
+        concept = concepts.get(concept_id)
 
         if concept is None:
             if strict:
@@ -300,8 +451,6 @@ def retrieve_knowledge(
             )
 
         seen.add(concept_id)
-        retrieved.append(
-            dict(concept)
-        )
+        retrieved.append(dict(concept))
 
     return retrieved

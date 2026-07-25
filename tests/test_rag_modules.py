@@ -1,44 +1,56 @@
-# tests/test_rag_modules.py
-
 from modules.knowledge import retrieve_knowledge
 from modules.prompt_builder import build_analysis_context
 from modules.rule_engine import evaluate_rules
 
 
-def test_rule_engine_retrieves_expected_concepts():
+def test_rule_engine_retrieves_expected_concepts_from_v6_signals():
     interpretation = {
-        "critical_relationship": "aligned",
-        "reload_friction": "high",
-        "damage_behavior": "sustained",
+        "signals": {
+            "critical_profile_present": {
+                "value": True,
+                "confidence": "derived",
+                "source_paths": [
+                    "root_stats.critical_chance_percent",
+                    "root_stats.critical_multiplier",
+                ],
+                "reason": None,
+            },
+            "reload_time": {
+                "value": 2.0,
+                "confidence": "structured",
+                "source_paths": [
+                    "shared_stats.reload_time",
+                ],
+                "reason": None,
+            },
+        }
     }
 
     rules = [
         {
             "id": "critical_rule",
-            "match": "all",
             "conditions": [
                 {
-                    "field": "critical_relationship",
+                    "field": "critical_profile_present",
                     "operator": "equals",
-                    "value": "aligned",
+                    "value": True,
                 }
             ],
             "retrieve": [
-                "critical_profile"
+                "critical_profile",
             ],
         },
         {
             "id": "reload_rule",
-            "match": "all",
             "conditions": [
                 {
-                    "field": "reload_friction",
-                    "operator": "equals",
-                    "value": "high",
+                    "field": "reload_time",
+                    "operator": "greater_than",
+                    "value": 0,
                 }
             ],
             "retrieve": [
-                "reload_friction"
+                "reload_friction",
             ],
         },
     ]
@@ -112,14 +124,11 @@ def test_context_builder_contains_interpretation_and_knowledge():
         "DETERMINISTIC INTERPRETATION"
         in context
     )
-
     assert (
         "Critical relationship: aligned"
         in context
     )
-
     assert "RELEVANT KNOWLEDGE" in context
-
     assert (
         "Critical chance and critical multiplier"
         in context

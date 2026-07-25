@@ -27,7 +27,11 @@ from modules.weapon_pipeline import prepare_weapon_analysis
 
 MODEL_ID = "Qwen/Qwen2.5-3B-Instruct-GGUF"
 MODEL_FILE = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
-MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / MODEL_FILE
+MODEL_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "models"
+    / MODEL_FILE
+)
 
 CONTEXT_SIZE = 4096
 MAX_TOKENS = 650
@@ -43,14 +47,8 @@ _inference_lock = Lock()
 FRICTION_PARAMETERS = {
     "reload_time",
     "magazine_size",
-    "ammo_capacity",
-    "ammo_pickup",
-    "beam_range",
-    "punch_through",
     "accuracy",
-    "recoil",
-    "projectile_speed",
-    "charge_time",
+    "range",
     "attack_speed",
     "heavy_attack_wind_up",
 }
@@ -63,16 +61,15 @@ REINFORCEMENT_PARAMETERS = {
     "fire_rate",
     "multishot",
     "magazine_size",
-    "ammo_capacity",
-    "ammo_pickup",
-    "punch_through",
-    "beam_range",
     "attack_speed",
     "range",
     "heavy_attack_damage",
 }
 
-ABSENT_FIELD_TERMS: dict[str, tuple[str, ...]] = {
+ABSENT_FIELD_TERMS: dict[
+    str,
+    tuple[str, ...],
+] = {
     "accuracy": (
         "accuracy",
         "precisión",
@@ -96,21 +93,21 @@ ABSENT_FIELD_TERMS: dict[str, tuple[str, ...]] = {
         "cargar el disparo",
         "disparo cargado",
     ),
-    "heavy_attack_wind_up": (
-        "wind-up",
-        "heavy wind-up",
-        "preparación del ataque pesado",
-        "tiempo de preparación",
+    "beam_range": (
+        "beam range",
+        "alcance del haz",
+    ),
+    "ammo_capacity": (
+        "ammo capacity",
+        "capacidad de munición",
+        "reserva de munición",
+    ),
+    "ammo_pickup": (
+        "ammo pickup",
+        "recogida de munición",
+        "recolección de munición",
     ),
 }
-
-FIRE_RATE_ONLY_COMFORT_TERMS = (
-    "alta frecuencia de disparos",
-    "alta cadencia",
-    "cadencia alta",
-    "high fire rate",
-    "high firing frequency",
-)
 
 CHARGE_BEHAVIOR_TERMS = (
     "charge behavior",
@@ -120,6 +117,13 @@ CHARGE_BEHAVIOR_TERMS = (
     "comportamiento de carga",
     "cargar el arma",
     "carga del disparo",
+)
+
+RADIAL_CLAIM_TERMS = (
+    "radial",
+    "explosión",
+    "explosive",
+    "área de explosión",
 )
 
 
@@ -161,7 +165,8 @@ def get_model() -> Any:
             ) from error
 
         logger.info(
-            "Loading local model | model=%s | context_size=%d",
+            "Loading local model | model=%s "
+            "| context_size=%d",
             MODEL_FILE,
             CONTEXT_SIZE,
         )
@@ -197,9 +202,9 @@ def _extract_content(
 ) -> str:
     choices = response.get("choices")
 
-    if not isinstance(choices, Sequence) or isinstance(
-        choices,
-        (str, bytes),
+    if (
+        not isinstance(choices, Sequence)
+        or isinstance(choices, (str, bytes))
     ):
         raise ModelResponseError(
             "The model did not return a choices list."
@@ -277,13 +282,11 @@ def _string_list(
             f"{field} must be a list."
         )
 
-    result: list[str] = []
-
-    for item in value:
-        text = str(item or "").strip()
-
-        if text:
-            result.append(text)
+    result = [
+        str(item or "").strip()
+        for item in value
+        if str(item or "").strip()
+    ]
 
     if len(result) > maximum:
         raise ModelResponseError(
@@ -311,6 +314,7 @@ def _parse_improvements(
         )
 
     results: list[dict[str, str]] = []
+    seen_parameters: set[str] = set()
 
     for index, item in enumerate(value):
         if not isinstance(item, Mapping):
@@ -322,11 +326,9 @@ def _parse_improvements(
         parameter = str(
             item.get("parameter") or ""
         ).strip()
-
         direction = str(
             item.get("direction") or ""
         ).strip()
-
         reason = _required_text(
             item.get("reason_es"),
             (
@@ -340,6 +342,14 @@ def _parse_improvements(
                 "Improvement parameter is not "
                 f"allowed: {parameter}."
             )
+
+        if parameter in seen_parameters:
+            raise ModelResponseError(
+                "Duplicate improvement parameter: "
+                f"{parameter}."
+            )
+
+        seen_parameters.add(parameter)
 
         if direction not in IMPROVEMENT_DIRECTIONS:
             raise ModelResponseError(
@@ -360,21 +370,46 @@ def _parse_improvements(
                 "with parameter none."
             )
 
-        results.append(
-            {
-                "parameter": parameter,
-                "direction": direction,
-                "reason_es": reason,
-            }
+        if (
+            direction == "correct_friction"
+            and parameter not in FRICTION_PARAMETERS
+        ):
+            raise ModelResponseError(
+                f"{parameter} cannot use "
+                "correct_friction."
+            )
+
+        if (
+            direction == "reinforce"
+            and parameter
+            not in REINFORCEMENT_PARAMETERS
+        ):
+            raise ModelResponseError(
+                f"{parameter} cannot use reinforce."
+            )
+
+        if (
+            parameter == "reload_time"
+            and direction != "correct_friction"
+        ):
+            raise ModelResponseError(
+                "reload_time must use "
+                "correct_friction."
+            )
+
+        results.append({
+            "parameter": parameter,
+            "direction": direction,
+            "reason_es": reason,
+        })
+
+    if (
+        any(
+            item["parameter"] == "none"
+            for item in results
         )
-
-    none_items = [
-        item
-        for item in results
-        if item["parameter"] == "none"
-    ]
-
-    if none_items and len(results) != 1:
+        and len(results) != 1
+    ):
         raise ModelResponseError(
             "Parameter none must be the only "
             "improvement."
@@ -400,14 +435,12 @@ def _parse_comfort(
             f"Invalid comfort rating: {rating}."
         )
 
-    reason = _required_text(
-        value.get("reason_es"),
-        "comfort.reason_es",
-    )
-
     return {
         "rating": rating,
-        "reason_es": reason,
+        "reason_es": _required_text(
+            value.get("reason_es"),
+            "comfort.reason_es",
+        ),
     }
 
 
@@ -470,15 +503,11 @@ def _parse_model_json(
             f"Invalid primary_job: {primary_job}."
         )
 
-    allowed = set(allowed_parameters)
-    allowed.add("none")
-
     strengths = _string_list(
         data.get("strengths_es"),
         "strengths_es",
         maximum=3,
     )
-
     limitations = _string_list(
         data.get("limitations_es"),
         "limitations_es",
@@ -490,6 +519,9 @@ def _parse_model_json(
             "At least one strength or limitation "
             "must be provided."
         )
+
+    allowed = set(allowed_parameters)
+    allowed.add("none")
 
     return {
         "behavior_summary_es": _required_text(
@@ -503,32 +535,20 @@ def _parse_model_json(
         ),
         "strengths_es": strengths,
         "limitations_es": limitations,
-        "improvement_priorities": (
+        "improvement_priorities":
             _parse_improvements(
                 data.get(
                     "improvement_priorities"
                 ),
                 allowed,
-            )
-        ),
+            ),
         "comfort": _parse_comfort(
             data.get("comfort")
         ),
     }
 
 
-def _nested_mapping(
-    value: Any,
-) -> Mapping[str, Any]:
-    if isinstance(value, Mapping):
-        return value
-
-    return {}
-
-
-def _normalized_text(
-    value: Any,
-) -> str:
+def _normalized_text(value: Any) -> str:
     return re.sub(
         r"\s+",
         " ",
@@ -544,13 +564,14 @@ def _collect_analysis_text(
         analysis.get("job_reason_es"),
     ]
 
-    strengths = analysis.get("strengths_es")
-    if isinstance(strengths, list):
-        parts.extend(strengths)
+    for field in (
+        "strengths_es",
+        "limitations_es",
+    ):
+        value = analysis.get(field)
 
-    limitations = analysis.get("limitations_es")
-    if isinstance(limitations, list):
-        parts.extend(limitations)
+        if isinstance(value, list):
+            parts.extend(value)
 
     improvements = analysis.get(
         "improvement_priorities"
@@ -578,210 +599,85 @@ def _collect_analysis_text(
     )
 
 
+def _signal_record(
+    interpretation: Mapping[str, Any],
+    field: str,
+) -> Mapping[str, Any]:
+    signals = interpretation.get("signals")
+
+    if not isinstance(signals, Mapping):
+        return {}
+
+    value = signals.get(field)
+
+    return (
+        value
+        if isinstance(value, Mapping)
+        else {}
+    )
+
+
+def _signal_value(
+    interpretation: Mapping[str, Any],
+    field: str,
+) -> Any:
+    record = _signal_record(
+        interpretation,
+        field,
+    )
+
+    if "value" in record:
+        return record.get("value")
+
+    flat = interpretation.get(
+        "flat_signals"
+    )
+
+    if isinstance(flat, Mapping):
+        return flat.get(field)
+
+    return None
+
+
 def _available_operational_fields(
     weapon_data: Mapping[str, Any],
 ) -> set[str]:
     available: set[str] = set()
 
-    shared_stats = _nested_mapping(
-        weapon_data.get("shared_stats")
-    )
-    root_stats = _nested_mapping(
-        weapon_data.get("root_stats")
-    )
+    for section_name in (
+        "shared_stats",
+        "root_stats",
+    ):
+        section = weapon_data.get(
+            section_name
+        )
 
-    for field, value in shared_stats.items():
-        if value not in (None, "", [], {}):
-            available.add(str(field))
+        if not isinstance(section, Mapping):
+            continue
 
-    for field, value in root_stats.items():
-        if value not in (None, "", [], {}):
-            available.add(str(field))
+        for field, value in section.items():
+            if value not in (None, "", [], {}):
+                available.add(str(field))
 
-    attack_modes = weapon_data.get(
+    modes = weapon_data.get(
         "attack_modes"
     )
 
-    if isinstance(attack_modes, list):
-        for mode in attack_modes:
+    if isinstance(modes, list):
+        for mode in modes:
             if not isinstance(mode, Mapping):
                 continue
 
             for field, value in mode.items():
-                if value not in (None, "", [], {}):
+                if value not in (
+                    None,
+                    "",
+                    [],
+                    {},
+                ):
                     available.add(str(field))
 
-    if "trigger_type" in available:
-        available.add("firing_mode")
-
-    if "fire_rate" in available:
-        category = _nested_mapping(
-            weapon_data.get("classification")
-        ).get("category")
-
-        if category in {
-            "melee",
-            "archmelee",
-            "drifter_melee",
-        }:
-            available.add("attack_speed")
-
-    if "range" in available:
-        category = _nested_mapping(
-            weapon_data.get("classification")
-        ).get("category")
-
-        if category in {
-            "melee",
-            "archmelee",
-            "drifter_melee",
-        }:
-            available.add("melee_range")
-
     return available
-
-
-def _infer_primary_job_hint(
-    interpretation: Mapping[str, Any],
-) -> str | None:
-    mechanic = _nested_mapping(
-        interpretation.get("mechanic_profile")
-    )
-
-    target_profile = interpretation.get(
-        "target_profile"
-    )
-
-    damage_behavior = interpretation.get(
-        "damage_behavior"
-    )
-
-    attack_behavior = interpretation.get(
-        "attack_behavior"
-    )
-
-    has_area_delivery = (
-        mechanic.get("has_area_delivery") is True
-        or mechanic.get("has_radial_component") is True
-        or interpretation.get(
-            "has_structured_multi_target_evidence"
-        ) is True
-    )
-
-    if (
-        target_profile == "multi_target_capable"
-        and has_area_delivery
-    ):
-        return "group_clear"
-
-    if damage_behavior == "heavy_attacks":
-        return "heavy_attacks"
-
-    if (
-        damage_behavior == "focused"
-        and target_profile in {
-            "single_target",
-            "close_range",
-        }
-    ):
-        return "focused_damage"
-
-    if (
-        attack_behavior == "charge"
-        and target_profile == "single_target"
-    ):
-        return "focused_damage"
-
-    return None
-
-
-def _validate_improvement_semantics(
-    analysis: Mapping[str, Any],
-) -> None:
-    improvements = analysis.get(
-        "improvement_priorities"
-    )
-
-    if not isinstance(improvements, list):
-        return
-
-    seen_parameters: set[str] = set()
-
-    for index, item in enumerate(improvements):
-        if not isinstance(item, Mapping):
-            continue
-
-        parameter = str(
-            item.get("parameter") or ""
-        )
-
-        direction = str(
-            item.get("direction") or ""
-        )
-
-        if parameter in seen_parameters:
-            raise ModelResponseError(
-                "Duplicate improvement parameter: "
-                f"{parameter}."
-            )
-
-        seen_parameters.add(parameter)
-
-        if parameter == "none":
-            continue
-
-        if (
-            direction == "correct_friction"
-            and parameter
-            not in FRICTION_PARAMETERS
-        ):
-            raise ModelResponseError(
-                f"{parameter} cannot use "
-                "correct_friction because it does "
-                "not represent an operational "
-                "friction parameter."
-            )
-
-        if (
-            direction == "reinforce"
-            and parameter
-            not in REINFORCEMENT_PARAMETERS
-        ):
-            raise ModelResponseError(
-                f"{parameter} cannot use reinforce "
-                "under the current semantic rules."
-            )
-
-        reason = _normalized_text(
-            item.get("reason_es")
-        )
-
-        if (
-            parameter == "status_chance"
-            and direction == "correct_friction"
-        ):
-            raise ModelResponseError(
-                "status_chance cannot correct "
-                "operational friction."
-            )
-
-        if (
-            parameter == "critical_multiplier"
-            and "recarga" in reason
-        ):
-            raise ModelResponseError(
-                "critical_multiplier cannot be "
-                "justified as a reload correction."
-            )
-
-        if (
-            parameter == "reload_time"
-            and direction != "correct_friction"
-        ):
-            raise ModelResponseError(
-                "reload_time must use "
-                "correct_friction."
-            )
 
 
 def _validate_absent_field_references(
@@ -792,26 +688,22 @@ def _validate_absent_field_references(
     available = _available_operational_fields(
         weapon_data
     )
-
     combined_text = _collect_analysis_text(
         analysis
     )
 
-    for field, terms in ABSENT_FIELD_TERMS.items():
+    for field, terms in (
+        ABSENT_FIELD_TERMS.items()
+    ):
         if field in available:
             continue
 
-        matched = [
-            term
-            for term in terms
-            if term in combined_text
-        ]
-
-        if matched:
-            raise ModelResponseError(
-                "The response references absent "
-                f"field {field}: {matched[0]}."
-            )
+        for term in terms:
+            if term in combined_text:
+                raise ModelResponseError(
+                    "The response references absent "
+                    f"field {field}: {term}."
+                )
 
 
 def _validate_beam_semantics(
@@ -820,14 +712,20 @@ def _validate_beam_semantics(
     interpretation: Mapping[str, Any],
 ) -> None:
     if (
-        interpretation.get("damage_delivery")
-        != "beam"
+        _signal_value(
+            interpretation,
+            "uses_beam_delivery",
+        )
+        is not True
     ):
         return
 
     if (
-        interpretation.get("attack_behavior")
-        != "continuous"
+        _signal_value(
+            interpretation,
+            "trigger_type",
+        )
+        != "held"
     ):
         return
 
@@ -838,63 +736,62 @@ def _validate_beam_semantics(
     for term in CHARGE_BEHAVIOR_TERMS:
         if term in combined_text:
             raise ModelResponseError(
-                "A continuous beam cannot be "
-                "described as charge behavior "
-                "without explicit charge data."
+                "A held beam cannot be described "
+                "as charge behavior without "
+                "explicit charge evidence."
+            )
+
+
+def _validate_radial_semantics(
+    analysis: Mapping[str, Any],
+    *,
+    interpretation: Mapping[str, Any],
+) -> None:
+    has_radial = _signal_value(
+        interpretation,
+        "has_radial_component",
+    )
+
+    if has_radial is True:
+        return
+
+    combined_text = _collect_analysis_text(
+        analysis
+    )
+
+    for term in RADIAL_CLAIM_TERMS:
+        if term in combined_text:
+            raise ModelResponseError(
+                "The response claims radial or "
+                "explosive behavior without "
+                "confirmed radial evidence."
             )
 
 
 def _has_demanding_evidence(
-    weapon_data: Mapping[str, Any],
     interpretation: Mapping[str, Any],
 ) -> bool:
-    if (
-        interpretation.get("reload_friction")
-        == "high"
-    ):
-        return True
-
-    if (
-        interpretation.get("handling_friction")
-        == "high"
-    ):
-        return True
-
-    shared_stats = _nested_mapping(
-        weapon_data.get("shared_stats")
+    friction_fields = (
+        "preparation_friction_present",
+        "interruption_friction_present",
+        "handling_friction_present",
+        "positioning_friction_present",
+        "tracking_friction_present",
     )
 
-    operational_values = (
-        shared_stats.get("accuracy"),
-        shared_stats.get("recoil"),
-        shared_stats.get("heavy_attack_wind_up"),
+    return any(
+        _signal_value(
+            interpretation,
+            field,
+        )
+        is True
+        for field in friction_fields
     )
-
-    if any(
-        value not in (None, "")
-        for value in operational_values
-    ):
-        return True
-
-    attack_modes = weapon_data.get(
-        "attack_modes"
-    )
-
-    if isinstance(attack_modes, list):
-        for mode in attack_modes:
-            if not isinstance(mode, Mapping):
-                continue
-
-            if mode.get("trigger_type") == "charge":
-                return True
-
-    return False
 
 
 def _validate_comfort_semantics(
     analysis: Mapping[str, Any],
     *,
-    weapon_data: Mapping[str, Any],
     interpretation: Mapping[str, Any],
 ) -> None:
     comfort = analysis.get("comfort")
@@ -902,108 +799,17 @@ def _validate_comfort_semantics(
     if not isinstance(comfort, Mapping):
         return
 
-    rating = comfort.get("rating")
-    reason = _normalized_text(
-        comfort.get("reason_es")
-    )
-
-    if rating == "demanding":
-        if not _has_demanding_evidence(
-            weapon_data,
-            interpretation,
-        ):
-            raise ModelResponseError(
-                "Comfort rating demanding lacks "
-                "supplied operational evidence."
-            )
-
-        if any(
-            term in reason
-            for term in FIRE_RATE_ONLY_COMFORT_TERMS
-        ):
-            other_evidence_terms = (
-                "recarga",
-                "reload",
-                "retroceso",
-                "recoil",
-                "precisión",
-                "accuracy",
-                "proyectil",
-                "projectile",
-                "alcance",
-                "range",
-                "wind-up",
-                "preparación",
-            )
-
-            if not any(
-                term in reason
-                for term in other_evidence_terms
-            ):
-                raise ModelResponseError(
-                    "High fire rate alone cannot "
-                    "justify demanding comfort."
-                )
-
-
-def _validate_primary_job(
-    analysis: Mapping[str, Any],
-    *,
-    interpretation: Mapping[str, Any],
-) -> None:
-    hint = _infer_primary_job_hint(
-        interpretation
-    )
-
-    if hint is None:
-        return
-
-    actual = analysis.get("primary_job")
-
-    if actual != hint:
-        raise ModelResponseError(
-            "Unsupported primary_job. "
-            f"Expected {hint} from deterministic "
-            f"evidence, received {actual}."
+    if (
+        comfort.get("rating") == "demanding"
+        and not _has_demanding_evidence(
+            interpretation
         )
-
-
-def _validate_area_semantics(
-    analysis: Mapping[str, Any],
-    *,
-    interpretation: Mapping[str, Any],
-) -> None:
-    mechanic = _nested_mapping(
-        interpretation.get("mechanic_profile")
-    )
-
-    has_area_evidence = (
-        mechanic.get("has_area_delivery") is True
-        or mechanic.get("has_radial_component") is True
-        or interpretation.get(
-            "has_structured_multi_target_evidence"
-        ) is True
-    )
-
-    combined_text = _collect_analysis_text(
-        analysis
-    )
-
-    unsupported_area_terms = (
-        "explosión",
-        "explosive",
-        "radial",
-    )
-
-    if has_area_evidence:
-        return
-
-    for term in unsupported_area_terms:
-        if term in combined_text:
-            raise ModelResponseError(
-                "The response claims area or radial "
-                "behavior without structured evidence."
-            )
+    ):
+        raise ModelResponseError(
+            "Comfort rating demanding lacks "
+            "confirmed operational-friction "
+            "evidence."
+        )
 
 
 def _validate_semantics(
@@ -1012,32 +818,25 @@ def _validate_semantics(
     weapon_data: Mapping[str, Any],
     interpretation: Mapping[str, Any],
 ) -> None:
-    _validate_primary_job(
-        analysis,
-        interpretation=interpretation,
-    )
+    """
+    Validate only claims that can be checked from the v6 evidence contract.
 
-    _validate_improvement_semantics(
-        analysis
-    )
-
+    Final role selection remains a language-model synthesis task. This module
+    does not recreate deterministic weapon interpretation.
+    """
     _validate_absent_field_references(
         analysis,
         weapon_data=weapon_data,
     )
-
     _validate_beam_semantics(
         analysis,
         interpretation=interpretation,
     )
-
-    _validate_comfort_semantics(
+    _validate_radial_semantics(
         analysis,
-        weapon_data=weapon_data,
         interpretation=interpretation,
     )
-
-    _validate_area_semantics(
+    _validate_comfort_semantics(
         analysis,
         interpretation=interpretation,
     )
@@ -1074,16 +873,8 @@ def _build_repair_prompt(
     previous_response: str,
     validation_error: Exception,
     allowed_parameters: tuple[str, ...],
-    interpretation: Mapping[str, Any],
 ) -> str:
-    primary_job_hint = (
-        _infer_primary_job_hint(
-            interpretation
-        )
-    )
-
     repair_constraints = {
-        "primary_job_hint": primary_job_hint,
         "allowed_improvement_parameters": [
             *allowed_parameters,
             "none",
@@ -1096,9 +887,8 @@ def _build_repair_prompt(
     return (
         f"{original_prompt}\n\n"
         "REPAIR_REQUIRED:\n"
-        "The previous response was valid enough "
-        "to inspect but failed schema or semantic "
-        "validation.\n\n"
+        "The previous response failed schema "
+        "or evidence validation.\n\n"
         "PREVIOUS_INVALID_RESPONSE:\n"
         f"{previous_response}\n\n"
         "REPAIR_CONSTRAINTS:\n"
@@ -1107,12 +897,10 @@ def _build_repair_prompt(
             ensure_ascii=False,
             indent=2,
         )}\n\n"
-        "Return a completely corrected JSON object.\n"
+        "Return one completely corrected JSON object.\n"
         "Do not explain the repair.\n"
         "Do not use Markdown.\n"
-        "Do not repeat unsupported conclusions.\n"
-        "Use exactly the schema required by the "
-        "system prompt."
+        "Do not repeat unsupported conclusions."
     )
 
 
@@ -1145,9 +933,10 @@ def generate_analysis(
     interpretation: Mapping[str, Any],
 ) -> str:
     """
-    Run local inference and validate structure and semantics.
+    Run one local inference and validate its JSON output.
 
-    One repair inference is attempted when the first response fails.
+    One repair inference is attempted when the first answer fails schema or
+    evidence validation.
     """
     clean_prompt = str(
         prompt or ""
@@ -1174,20 +963,17 @@ def generate_analysis(
             "interpretation must be a Mapping."
         )
 
-    job_hint = _infer_primary_job_hint(
-        interpretation
-    )
-
     logger.info(
         "Starting model inference "
         "| prompt_characters=%d "
-        "| allowed_parameters=%s "
-        "| primary_job_hint=%s",
+        "| allowed_parameters=%s",
         len(clean_prompt),
-        ",".join(
-            allowed_parameters
-        ) or "none",
-        job_hint or "none",
+        (
+            ",".join(
+                allowed_parameters
+            )
+            or "none"
+        ),
     )
 
     messages = [
@@ -1207,17 +993,13 @@ def generate_analysis(
         )
 
         try:
-            parsed = (
-                _validate_generated_content(
-                    raw_content,
-                    allowed_parameters=(
-                        allowed_parameters
-                    ),
-                    weapon_data=weapon_data,
-                    interpretation=(
-                        interpretation
-                    ),
-                )
+            parsed = _validate_generated_content(
+                raw_content,
+                allowed_parameters=(
+                    allowed_parameters
+                ),
+                weapon_data=weapon_data,
+                interpretation=interpretation,
             )
 
         except ModelResponseError as first_error:
@@ -1235,37 +1017,28 @@ def generate_analysis(
                 raw_content,
                 first_error,
                 allowed_parameters,
-                interpretation,
             )
-
-            repair_messages = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": repair_prompt,
-                },
-            ]
 
             repaired_content = (
-                _create_completion(
-                    repair_messages
-                )
+                _create_completion([
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": repair_prompt,
+                    },
+                ])
             )
 
-            parsed = (
-                _validate_generated_content(
-                    repaired_content,
-                    allowed_parameters=(
-                        allowed_parameters
-                    ),
-                    weapon_data=weapon_data,
-                    interpretation=(
-                        interpretation
-                    ),
-                )
+            parsed = _validate_generated_content(
+                repaired_content,
+                allowed_parameters=(
+                    allowed_parameters
+                ),
+                weapon_data=weapon_data,
+                interpretation=interpretation,
             )
 
             logger.info(
@@ -1298,7 +1071,6 @@ def generate_analysis(
             allowed_parameters=(
                 allowed_parameters
             ),
-            primary_job_hint=job_hint,
         )
         raise
 
@@ -1307,7 +1079,7 @@ def analyze_weapon_state(
     normalized_weapon_data: Mapping[str, Any],
 ) -> dict[str, Any]:
     """
-    Return deterministic RAG state and validated analysis.
+    Return deterministic RAG state and validated model analysis.
     """
     if not isinstance(
         normalized_weapon_data,
@@ -1322,18 +1094,13 @@ def analyze_weapon_state(
             "No weapon data was supplied."
         )
 
-    weapon_dict = dict(
-        normalized_weapon_data
-    )
-
     prepared = prepare_weapon_analysis(
-        weapon_dict
+        dict(normalized_weapon_data)
     )
 
     weapon_data = prepared[
         "weapon_data"
     ]
-
     interpretation = prepared[
         "interpretation"
     ]
@@ -1360,22 +1127,14 @@ def analyze_weapon_state(
         interpretation=interpretation,
     )
 
-    analysis = json.loads(
-        raw_analysis
-    )
-
     return {
         **prepared,
-        "primary_job_hint": (
-            _infer_primary_job_hint(
-                interpretation
-            )
-        ),
-        "allowed_improvement_parameters": list(
-            allowed_parameters
-        ),
+        "allowed_improvement_parameters":
+            list(allowed_parameters),
         "prompt": prompt,
-        "analysis": analysis,
+        "analysis": json.loads(
+            raw_analysis
+        ),
     }
 
 
@@ -1408,10 +1167,10 @@ def _format_list(
 def _format_improvements(
     values: Any,
 ) -> list[str]:
-    if not isinstance(
-        values,
-        list,
-    ) or not values:
+    if (
+        not isinstance(values, list)
+        or not values
+    ):
         return [
             "- No se identificó una "
             "prioridad dominante."
@@ -1420,22 +1179,17 @@ def _format_improvements(
     lines: list[str] = []
 
     for item in values:
-        if not isinstance(
-            item,
-            Mapping,
-        ):
+        if not isinstance(item, Mapping):
             continue
 
         parameter = str(
             item.get("parameter")
             or "none"
         ).strip()
-
         direction = str(
             item.get("direction")
             or "none"
         ).strip()
-
         reason = str(
             item.get("reason_es")
             or ""
@@ -1446,12 +1200,11 @@ def _format_improvements(
                 "- Sin mejora dominante: "
                 f"{reason}"
             )
-            continue
-
-        lines.append(
-            f"- {parameter}: {reason} "
-            f"({direction})"
-        )
+        else:
+            lines.append(
+                f"- {parameter}: {reason} "
+                f"({direction})"
+            )
 
     return lines or [
         "- No se identificó una "
@@ -1463,14 +1216,9 @@ def format_analysis(
     analysis: Mapping[str, Any],
 ) -> str:
     """Format validated JSON for the text interface."""
-    comfort = analysis.get(
-        "comfort"
-    )
+    comfort = analysis.get("comfort")
 
-    if not isinstance(
-        comfort,
-        Mapping,
-    ):
+    if not isinstance(comfort, Mapping):
         comfort = {}
 
     lines = [
@@ -1536,9 +1284,7 @@ def format_analysis(
         ),
     ]
 
-    return "\n".join(
-        lines
-    ).strip()
+    return "\n".join(lines).strip()
 
 
 def analyze_weapon(
@@ -1575,13 +1321,9 @@ def _load_json(
             "valid JSON."
         ) from error
 
-    if not isinstance(
-        data,
-        Mapping,
-    ):
+    if not isinstance(data, Mapping):
         raise RuntimeError(
-            "The JSON root must be "
-            "an object."
+            "The JSON root must be an object."
         )
 
     return data
@@ -1606,58 +1348,45 @@ def main() -> None:
             "weapon entry."
         ),
     )
-
     parser.add_argument(
         "--show-state",
         action="store_true",
         help=(
-            "Show deterministic "
-            "interpretation and "
+            "Show deterministic state and "
             "retrieved concepts."
         ),
     )
-
     parser.add_argument(
         "--show-prompt",
         action="store_true",
-        help=(
-            "Show the final RAG prompt."
-        ),
+        help="Show the final RAG prompt.",
     )
-
     parser.add_argument(
         "--no-ai",
         action="store_true",
         help=(
-            "Prepare the RAG context "
-            "without loading the model."
+            "Prepare RAG context without "
+            "loading the model."
         ),
     )
 
     args = parser.parse_args()
-
-    raw_data = _load_json(
-        args.input
-    )
+    raw_data = _load_json(args.input)
 
     prepared = prepare_weapon_analysis(
         dict(raw_data)
     )
-
     weapon_data = prepared[
         "weapon_data"
     ]
-
     interpretation = prepared[
         "interpretation"
     ]
-
     allowed_parameters = (
         available_improvement_parameters(
             weapon_data
         )
     )
-
     prompt = build_weapon_prompt(
         weapon_data=weapon_data,
         analysis_context=prepared[
@@ -1667,33 +1396,18 @@ def main() -> None:
 
     if args.show_state:
         visible_state = {
-            "interpretation": (
-                interpretation
-            ),
-            "primary_job_hint": (
-                _infer_primary_job_hint(
-                    interpretation
-                )
-            ),
-            "activated_concepts": (
-                prepared[
-                    "activated_concepts"
-                ]
-            ),
-            "retrieved_knowledge": (
-                prepared[
-                    "retrieved_knowledge"
-                ]
-            ),
-            "allowed_improvement_parameters": list(
-                allowed_parameters
-            ),
+            "interpretation": interpretation,
+            "activated_concepts": prepared[
+                "activated_concepts"
+            ],
+            "retrieved_knowledge": prepared[
+                "retrieved_knowledge"
+            ],
+            "allowed_improvement_parameters":
+                list(allowed_parameters),
         }
 
-        print(
-            "\n--- RAG STATE ---\n"
-        )
-
+        print("\n--- RAG STATE ---\n")
         print(
             json.dumps(
                 visible_state,
@@ -1703,9 +1417,7 @@ def main() -> None:
         )
 
     if args.show_prompt:
-        print(
-            "\n--- FINAL PROMPT ---\n"
-        )
+        print("\n--- FINAL PROMPT ---\n")
         print(prompt)
 
     if args.no_ai:
@@ -1720,17 +1432,12 @@ def main() -> None:
         interpretation=interpretation,
     )
 
-    analysis = json.loads(
-        analysis_json
-    )
-
-    print(
-        "\n--- ANALYSIS ---\n"
-    )
-
+    print("\n--- ANALYSIS ---\n")
     print(
         format_analysis(
-            analysis
+            json.loads(
+                analysis_json
+            )
         )
     )
 

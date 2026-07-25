@@ -21,17 +21,32 @@
         {
           "field": "critical_profile_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         },
         {
           "field": "critical_chance",
           "operator": "greater_than",
-          "value": 0
+          "value": 0,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         },
         {
           "field": "critical_multiplier",
           "operator": "greater_than",
-          "value": 0
+          "value": 0,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         }
       ],
       "retrieve": [
@@ -45,17 +60,22 @@
         {
           "field": "status_profile_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         },
         {
           "field": "status_chance",
           "operator": "greater_than",
-          "value": 0
-        },
-        {
-          "field": "eligible_status_opportunity_profile_present",
-          "operator": "equals",
-          "value": true
+          "value": 0,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         }
       ],
       "retrieve": [
@@ -87,24 +107,37 @@
           "value": 1
         },
         {
-          "field": "charge_time",
-          "operator": "greater_than",
-          "value": 0
-        },
-        {
           "field": "has_spool_up_evidence",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         },
         {
           "field": "has_press_release_evidence",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         },
         {
           "field": "has_secondary_activation_evidence",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         }
       ],
       "retrieve": [
@@ -122,7 +155,7 @@
             "hitscan",
             "projectile",
             "beam",
-            "undetermined"
+            "mixed"
           ]
         },
         {
@@ -131,8 +164,7 @@
           "value": [
             "direct",
             "radial",
-            "mixed",
-            "undetermined"
+            "mixed"
           ]
         },
         {
@@ -155,11 +187,6 @@
           "value": 1
         },
         {
-          "field": "has_mode_state_evidence",
-          "operator": "equals",
-          "value": true
-        },
-        {
           "field": "has_parent_mode_relationship",
           "operator": "equals",
           "value": true
@@ -167,7 +194,12 @@
         {
           "field": "has_ambiguous_mode_records",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         }
       ],
       "retrieve": [
@@ -194,14 +226,15 @@
           "value": 1
         },
         {
-          "field": "damage_component_count",
-          "operator": "greater_than",
-          "value": 1
-        },
-        {
           "field": "has_conditional_instance_evidence",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         }
       ],
       "retrieve": [
@@ -233,17 +266,14 @@
     },
     {
       "id": "retrieve_description_evidence",
-      "match": "any",
       "conditions": [
-        {
-          "field": "description_present",
-          "operator": "equals",
-          "value": true
-        },
         {
           "field": "description_claims_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "validated_description"
+          ]
         }
       ],
       "retrieve": [
@@ -258,9 +288,9 @@
           "field": "recovery_model",
           "operator": "in",
           "value": [
-            "full_magazine",
+            "conventional_timed_reload",
             "incremental",
-            "regenerative",
+            "battery_like",
             "staged"
           ]
         },
@@ -296,22 +326,32 @@
         {
           "field": "sustained_cycle_profile_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         },
         {
           "field": "has_repeatable_attack_cycle",
           "operator": "equals",
-          "value": true
-        },
-        {
-          "field": "active_damage_output_present",
-          "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         },
         {
           "field": "mechanical_application_continuity_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived"
+          ]
         }
       ],
       "retrieve": [
@@ -325,7 +365,13 @@
         {
           "field": "uses_beam_delivery",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         },
         {
           "field": "delivery_path",
@@ -354,7 +400,13 @@
         {
           "field": "has_chaining",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         },
         {
           "field": "punch_through_depth",
@@ -364,7 +416,13 @@
         {
           "field": "distributed_instance_profile_present",
           "operator": "equals",
-          "value": true
+          "value": true,
+          "confidence_in": [
+            "structured",
+            "normalized",
+            "derived",
+            "validated_description"
+          ]
         }
       ],
       "retrieve": [
@@ -382,11 +440,6 @@
         },
         {
           "field": "structured_special_mechanic_present",
-          "operator": "equals",
-          "value": true
-        },
-        {
-          "field": "validated_description_mechanic_present",
           "operator": "equals",
           "value": true
         }
@@ -418,11 +471,6 @@
           "field": "ammo_cost_per_consumption_event",
           "operator": "greater_than",
           "value": 0
-        },
-        {
-          "field": "consumption_event_frequency_present",
-          "operator": "equals",
-          "value": true
         },
         {
           "field": "ammo_regeneration_present",
