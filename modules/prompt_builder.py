@@ -221,6 +221,33 @@ Return only one valid JSON object:
 """.strip()
 
 
+SPECIALIZED_SYSTEM_PROMPT = """
+You are a technical Warframe weapon analyst performing one isolated analysis task.
+
+Use only the supplied evidence and retrieved knowledge for this task.
+Do not discuss concepts outside the requested scope.
+Do not invent missing statistics, mechanics, builds, mods, enemies, missions,
+damage calculations, comparisons, or operational problems.
+Do not treat unavailable or heuristic evidence as confirmed.
+Return only one valid JSON object matching the requested schema.
+Write explanatory text in concise Spanish.
+""".strip()
+
+
+SYNTHESIS_SYSTEM_PROMPT = """
+You are a technical Warframe weapon analyst performing final synthesis.
+
+Use only the supplied partial analysis results and exact generation constraints.
+Do not re-analyze raw weapon statistics.
+Do not invent evidence or repair missing partial analyses with outside knowledge.
+Resolve conflicts by preferring explicit mechanical evidence and higher-confidence
+partial results.
+Separate combat function from operational comfort.
+Return only one valid JSON object matching the requested schema.
+Write explanatory text in concise Spanish.
+""".strip()
+
+
 class PromptBuilderError(ValueError):
     """Raised when prompt input is missing or malformed."""
 
@@ -239,11 +266,7 @@ def _is_present(value: Any) -> bool:
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
-    return (
-        value
-        if isinstance(value, Mapping)
-        else {}
-    )
+    return value if isinstance(value, Mapping) else {}
 
 
 def _clean_text_items(value: Any) -> list[str]:
@@ -253,8 +276,7 @@ def _clean_text_items(value: Any) -> list[str]:
     return [
         item.strip()
         for item in value
-        if isinstance(item, str)
-        and item.strip()
+        if isinstance(item, str) and item.strip()
     ]
 
 
@@ -262,11 +284,24 @@ def _concept_id(
     concept: Mapping[str, Any],
 ) -> str:
     value = concept.get("id")
-    return (
-        str(value).strip()
-        if value
-        else ""
-    )
+    return str(value).strip() if value else ""
+
+
+def _concept_map(
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+) -> dict[str, Mapping[str, Any]]:
+    result: dict[str, Mapping[str, Any]] = {}
+
+    for concept in retrieved_knowledge:
+        if not isinstance(concept, Mapping):
+            continue
+
+        concept_id = _concept_id(concept)
+
+        if concept_id:
+            result[concept_id] = concept
+
+    return result
 
 
 def _signal_record(
@@ -280,11 +315,7 @@ def _signal_record(
 
     record = signals.get(field)
 
-    return (
-        record
-        if isinstance(record, Mapping)
-        else {}
-    )
+    return record if isinstance(record, Mapping) else {}
 
 
 def _signal_value(
@@ -299,9 +330,7 @@ def _signal_value(
     if "value" in record:
         return record.get("value")
 
-    flat_signals = interpretation.get(
-        "flat_signals"
-    )
+    flat_signals = interpretation.get("flat_signals")
 
     if isinstance(flat_signals, Mapping):
         return flat_signals.get(field)
@@ -317,32 +346,29 @@ def _signal_is_prompt_safe(
 
     return (
         value is not None
-        and confidence
-        in ALLOWED_SIGNAL_CONFIDENCE
+        and confidence in ALLOWED_SIGNAL_CONFIDENCE
     )
 
 
 def _compact_signals(
     interpretation: Mapping[str, Any],
+    fields: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     compact: dict[str, Any] = {}
+    selected_fields = tuple(fields or PROMPT_SIGNAL_ORDER)
 
-    for field in PROMPT_SIGNAL_ORDER:
+    for field in selected_fields:
         record = _signal_record(
             interpretation,
             field,
         )
 
-        if not _signal_is_prompt_safe(
-            record
-        ):
+        if not _signal_is_prompt_safe(record):
             continue
 
         compact[field] = {
             "value": record.get("value"),
-            "confidence": record.get(
-                "confidence"
-            ),
+            "confidence": record.get("confidence"),
         }
 
     return compact
@@ -366,10 +392,7 @@ def _legacy_interpretation_lines(
     lines: list[str] = []
 
     for key, value in interpretation.items():
-        if (
-            key == "evidence"
-            or not _is_present(value)
-        ):
+        if key == "evidence" or not _is_present(value):
             continue
 
         readable_key = (
@@ -387,6 +410,7 @@ def _legacy_interpretation_lines(
 
 def _compact_records(
     interpretation: Mapping[str, Any],
+    keys: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     records = interpretation.get("records")
 
@@ -394,13 +418,17 @@ def _compact_records(
         return {}
 
     compact: dict[str, Any] = {}
+    selected_keys = tuple(
+        keys
+        or (
+            "description_claims",
+            "multi_target_mechanics",
+            "special_mechanics",
+            "operational_friction",
+        )
+    )
 
-    for key in (
-        "description_claims",
-        "multi_target_mechanics",
-        "special_mechanics",
-        "operational_friction",
-    ):
+    for key in selected_keys:
         value = records.get(key)
 
         if isinstance(value, list) and value:
@@ -415,16 +443,13 @@ def _candidate_signal_fields(
     concept_id = _concept_id(concept)
     candidates: list[str] = []
 
-    signal_fields = concept.get(
-        "signal_fields"
-    )
+    signal_fields = concept.get("signal_fields")
 
     if isinstance(signal_fields, list):
         candidates.extend(
             str(field).strip()
             for field in signal_fields
-            if isinstance(field, str)
-            and field.strip()
+            if isinstance(field, str) and field.strip()
         )
 
     candidates.extend(
@@ -434,25 +459,19 @@ def _candidate_signal_fields(
         )
     )
 
-    return tuple(
-        dict.fromkeys(candidates)
-    )
+    return tuple(dict.fromkeys(candidates))
 
 
 def _select_interpretation_branch(
     concept: Mapping[str, Any],
     interpretation: Mapping[str, Any],
 ) -> tuple[str | None, Any, list[str]]:
-    branches = concept.get(
-        "interpretation"
-    )
+    branches = concept.get("interpretation")
 
     if not isinstance(branches, Mapping):
         return None, None, []
 
-    for field in _candidate_signal_fields(
-        concept
-    ):
+    for field in _candidate_signal_fields(concept):
         actual = _signal_value(
             interpretation,
             field,
@@ -461,16 +480,12 @@ def _select_interpretation_branch(
         if actual is None:
             continue
 
-        branch = branches.get(
-            str(actual)
-        )
+        branch = branches.get(str(actual))
 
         if branch is None:
             branch = branches.get(actual)
 
-        selected = _clean_text_items(
-            branch
-        )
+        selected = _clean_text_items(branch)
 
         if selected:
             return field, actual, selected
@@ -482,25 +497,15 @@ def _select_conditional_exceptions(
     concept: Mapping[str, Any],
     interpretation: Mapping[str, Any],
 ) -> list[str]:
-    conditional = concept.get(
-        "conditional_exceptions"
-    )
+    conditional = concept.get("conditional_exceptions")
 
-    if not isinstance(
-        conditional,
-        Mapping,
-    ):
+    if not isinstance(conditional, Mapping):
         return []
 
     selected: list[str] = []
 
-    for field, branches in (
-        conditional.items()
-    ):
-        if not isinstance(
-            branches,
-            Mapping,
-        ):
+    for field, branches in conditional.items():
+        if not isinstance(branches, Mapping):
             continue
 
         actual = _signal_value(
@@ -508,48 +513,39 @@ def _select_conditional_exceptions(
             str(field),
         )
 
-        branch = branches.get(
-            str(actual)
-        )
-
-        selected.extend(
-            _clean_text_items(branch)
-        )
+        branch = branches.get(str(actual))
+        selected.extend(_clean_text_items(branch))
 
     return selected
 
 
 def _build_knowledge_payload(
     interpretation: Mapping[str, Any],
-    retrieved_knowledge: Sequence[
-        Mapping[str, Any]
-    ],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
     *,
+    concept_ids: Sequence[str] | None = None,
     max_principles_per_concept: int,
     max_exceptions_per_concept: int,
 ) -> list[dict[str, Any]]:
     payload: list[dict[str, Any]] = []
     seen_text: set[str] = set()
+    allowed_ids = set(concept_ids or ())
 
     for concept in retrieved_knowledge:
-        if not isinstance(
-            concept,
-            Mapping,
-        ):
+        if not isinstance(concept, Mapping):
             continue
 
-        concept_id = _concept_id(
-            concept
-        )
+        concept_id = _concept_id(concept)
 
         if not concept_id:
             continue
 
-        field, actual, branch_items = (
-            _select_interpretation_branch(
-                concept,
-                interpretation,
-            )
+        if allowed_ids and concept_id not in allowed_ids:
+            continue
+
+        field, actual, branch_items = _select_interpretation_branch(
+            concept,
+            interpretation,
         )
 
         principles = _clean_text_items(
@@ -566,9 +562,7 @@ def _build_knowledge_payload(
             )
         )[:max_exceptions_per_concept]
 
-        def unique(
-            items: list[str],
-        ) -> list[str]:
+        def unique(items: list[str]) -> list[str]:
             result: list[str] = []
 
             for item in items:
@@ -591,28 +585,20 @@ def _build_knowledge_payload(
         title = concept.get("title")
 
         if isinstance(title, str) and title.strip():
-            concept_payload["title"] = (
-                title.strip()
-            )
+            concept_payload["title"] = title.strip()
 
         if field and branch_items:
-            concept_payload[
-                "selected_branch"
-            ] = {
+            concept_payload["selected_branch"] = {
                 "field": field,
                 "value": actual,
                 "guidance": branch_items,
             }
 
         if principles:
-            concept_payload[
-                "principles"
-            ] = principles
+            concept_payload["principles"] = principles
 
         if exceptions:
-            concept_payload[
-                "constraints"
-            ] = exceptions
+            concept_payload["constraints"] = exceptions
 
         if len(concept_payload) > 1:
             payload.append(concept_payload)
@@ -630,21 +616,15 @@ def build_analysis_context(
     """
     Build compact context from v6 evidence and activated knowledge only.
 
-    Heuristic and unavailable signals are excluded from the prompt-facing
-    signal payload. Full audit data remains available in the pipeline output.
+    This legacy-compatible function remains available for the existing
+    single-prompt flow.
     """
-    if not isinstance(
-        interpretation,
-        Mapping,
-    ):
+    if not isinstance(interpretation, Mapping):
         raise PromptBuilderError(
             "interpretation must be a Mapping."
         )
 
-    if not isinstance(
-        retrieved_knowledge,
-        list,
-    ):
+    if not isinstance(retrieved_knowledge, list):
         raise PromptBuilderError(
             "retrieved_knowledge must be a list."
         )
@@ -655,30 +635,12 @@ def build_analysis_context(
     compact_records = _compact_records(
         interpretation
     )
-    knowledge_payload = (
-        _build_knowledge_payload(
-            interpretation,
-            retrieved_knowledge,
-            max_principles_per_concept=(
-                max_principles_per_concept
-            ),
-            max_exceptions_per_concept=(
-                max_exceptions_per_concept
-            ),
-        )
+    knowledge_payload = _build_knowledge_payload(
+        interpretation,
+        retrieved_knowledge,
+        max_principles_per_concept=max_principles_per_concept,
+        max_exceptions_per_concept=max_exceptions_per_concept,
     )
-
-    context_payload = {
-        "deterministic_signals": (
-            compact_signals
-        ),
-        "relevant_records": (
-            compact_records
-        ),
-        "retrieved_knowledge": (
-            knowledge_payload
-        ),
-    }
 
     legacy_lines = _legacy_interpretation_lines(
         interpretation
@@ -687,37 +649,23 @@ def build_analysis_context(
     deterministic_section = (
         "\n".join(legacy_lines)
         if legacy_lines
-        else _json(
-            context_payload[
-                "deterministic_signals"
-            ]
-        )
+        else _json(compact_signals)
     )
 
     return (
         "DETERMINISTIC INTERPRETATION:\n"
         + deterministic_section
         + "\n\nRELEVANT RECORDS:\n"
-        + _json(
-            context_payload[
-                "relevant_records"
-            ]
-        )
+        + _json(compact_records)
         + "\n\nRELEVANT KNOWLEDGE:\n"
-        + _json(
-            context_payload[
-                "retrieved_knowledge"
-            ]
-        )
+        + _json(knowledge_payload)
     )
 
 
 def _primary_mode(
     weapon_data: Mapping[str, Any],
 ) -> Mapping[str, Any]:
-    modes = weapon_data.get(
-        "attack_modes"
-    )
+    modes = weapon_data.get("attack_modes")
 
     if not isinstance(modes, list):
         return {}
@@ -766,68 +714,44 @@ def available_improvement_parameters(
         ),
     )
 
-    for source_key, parameter_key in (
-        core_parameter_map
-    ):
+    for source_key, parameter_key in core_parameter_map:
         value = (
             mode.get(source_key)
-            if _is_present(
-                mode.get(source_key)
-            )
-            else root_stats.get(
-                source_key
-            )
+            if _is_present(mode.get(source_key))
+            else root_stats.get(source_key)
         )
 
         if _is_present(value):
-            parameters.append(
-                parameter_key
-            )
+            parameters.append(parameter_key)
 
-    category = classification.get(
-        "category"
-    )
+    category = classification.get("category")
 
     if category in RANGED_CATEGORIES:
         candidates = (
             (
                 mode.get("fire_rate")
-                if _is_present(
-                    mode.get("fire_rate")
-                )
-                else root_stats.get(
-                    "fire_rate"
-                ),
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
                 "fire_rate",
             ),
             (
-                shared_stats.get(
-                    "multishot"
-                ),
+                shared_stats.get("multishot"),
                 "multishot",
             ),
             (
-                shared_stats.get(
-                    "magazine_size"
-                ),
+                shared_stats.get("magazine_size"),
                 "magazine_size",
             ),
             (
-                shared_stats.get(
-                    "reload_time"
-                ),
+                shared_stats.get("reload_time"),
                 "reload_time",
             ),
             (
-                shared_stats.get(
-                    "accuracy"
-                ),
+                shared_stats.get("accuracy"),
                 "accuracy",
             ),
             (
-                shared_stats.get(
-                    "range"
-                ),
+                shared_stats.get("range"),
                 "range",
             ),
         )
@@ -836,30 +760,20 @@ def available_improvement_parameters(
         candidates = (
             (
                 mode.get("fire_rate")
-                if _is_present(
-                    mode.get("fire_rate")
-                )
-                else root_stats.get(
-                    "fire_rate"
-                ),
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
                 "attack_speed",
             ),
             (
-                shared_stats.get(
-                    "range"
-                ),
+                shared_stats.get("range"),
                 "melee_range",
             ),
             (
-                shared_stats.get(
-                    "heavy_attack_damage"
-                ),
+                shared_stats.get("heavy_attack_damage"),
                 "heavy_attack_damage",
             ),
             (
-                shared_stats.get(
-                    "heavy_attack_wind_up"
-                ),
+                shared_stats.get("heavy_attack_wind_up"),
                 "heavy_attack_wind_up",
             ),
         )
@@ -869,13 +783,9 @@ def available_improvement_parameters(
 
     for value, parameter_key in candidates:
         if _is_present(value):
-            parameters.append(
-                parameter_key
-            )
+            parameters.append(parameter_key)
 
-    return tuple(
-        dict.fromkeys(parameters)
-    )
+    return tuple(dict.fromkeys(parameters))
 
 
 def available_operational_fields(
@@ -896,57 +806,39 @@ def available_operational_fields(
         weapon_data
     )
 
-    category = classification.get(
-        "category"
-    )
+    category = classification.get("category")
 
     if category in RANGED_CATEGORIES:
         field_map = (
             (
                 mode.get("trigger_type")
-                or shared_stats.get(
-                    "trigger_type"
-                ),
+                or shared_stats.get("trigger_type"),
                 "trigger_type",
             ),
             (
                 mode.get("fire_rate")
-                if _is_present(
-                    mode.get("fire_rate")
-                )
-                else root_stats.get(
-                    "fire_rate"
-                ),
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
                 "fire_rate",
             ),
             (
-                shared_stats.get(
-                    "magazine_size"
-                ),
+                shared_stats.get("magazine_size"),
                 "magazine_size",
             ),
             (
-                shared_stats.get(
-                    "reload_time"
-                ),
+                shared_stats.get("reload_time"),
                 "reload_time",
             ),
             (
-                shared_stats.get(
-                    "accuracy"
-                ),
+                shared_stats.get("accuracy"),
                 "accuracy",
             ),
             (
-                shared_stats.get(
-                    "range"
-                ),
+                shared_stats.get("range"),
                 "range",
             ),
             (
-                shared_stats.get(
-                    "noise"
-                ),
+                shared_stats.get("noise"),
                 "noise",
             ),
         )
@@ -955,24 +847,16 @@ def available_operational_fields(
         field_map = (
             (
                 mode.get("fire_rate")
-                if _is_present(
-                    mode.get("fire_rate")
-                )
-                else root_stats.get(
-                    "fire_rate"
-                ),
+                if _is_present(mode.get("fire_rate"))
+                else root_stats.get("fire_rate"),
                 "attack_speed",
             ),
             (
-                shared_stats.get(
-                    "range"
-                ),
+                shared_stats.get("range"),
                 "melee_range",
             ),
             (
-                shared_stats.get(
-                    "heavy_attack_wind_up"
-                ),
+                shared_stats.get("heavy_attack_wind_up"),
                 "heavy_attack_wind_up",
             ),
         )
@@ -984,9 +868,7 @@ def available_operational_fields(
         if _is_present(value):
             fields.append(field_name)
 
-    return tuple(
-        dict.fromkeys(fields)
-    )
+    return tuple(dict.fromkeys(fields))
 
 
 def absent_operational_fields(
@@ -1010,9 +892,7 @@ def absent_operational_fields(
     )
 
     return tuple(
-        sorted(
-            relevant_fields - present
-        )
+        sorted(relevant_fields - present)
     )
 
 
@@ -1021,64 +901,40 @@ def _safe_weapon_data(
 ) -> dict[str, Any]:
     classification = dict(
         _mapping(
-            weapon_data.get(
-                "classification"
-            )
+            weapon_data.get("classification")
         )
     )
     shared_stats = dict(
         _mapping(
-            weapon_data.get(
-                "shared_stats"
-            )
+            weapon_data.get("shared_stats")
         )
     )
     root_stats = dict(
         _mapping(
-            weapon_data.get(
-                "root_stats"
-            )
+            weapon_data.get("root_stats")
         )
     )
 
     modes: list[dict[str, Any]] = []
-
-    raw_modes = weapon_data.get(
-        "attack_modes"
-    )
+    raw_modes = weapon_data.get("attack_modes")
 
     if isinstance(raw_modes, list):
         for raw_mode in raw_modes:
-            if isinstance(
-                raw_mode,
-                Mapping,
-            ):
-                modes.append(
-                    dict(raw_mode)
-                )
+            if isinstance(raw_mode, Mapping):
+                modes.append(dict(raw_mode))
 
     safe = {
-        "weapon_name": (
-            weapon_data.get(
-                "display_name"
-            )
-        ),
-        "classification": (
-            classification
-        ),
+        "weapon_name": weapon_data.get("display_name"),
+        "classification": classification,
         "shared_stats": shared_stats,
         "root_stats": root_stats,
         "attack_modes": modes,
     }
 
-    description = weapon_data.get(
-        "display_description"
-    )
+    description = weapon_data.get("display_description")
 
     if _is_present(description):
-        safe[
-            "description_reference"
-        ] = description
+        safe["description_reference"] = description
 
     return {
         key: value
@@ -1087,17 +943,715 @@ def _safe_weapon_data(
     }
 
 
+def _mode_stat_payload(
+    weapon_data: Mapping[str, Any],
+    *,
+    include_fields: Sequence[str],
+) -> list[dict[str, Any]]:
+    raw_modes = weapon_data.get("attack_modes")
+
+    if not isinstance(raw_modes, list):
+        return []
+
+    result: list[dict[str, Any]] = []
+
+    for index, raw_mode in enumerate(raw_modes, start=1):
+        if not isinstance(raw_mode, Mapping):
+            continue
+
+        payload: dict[str, Any] = {
+            "mode_id": raw_mode.get("mode_id") or f"mode_{index}",
+        }
+
+        for field in include_fields:
+            value = raw_mode.get(field)
+
+            if _is_present(value):
+                payload[field] = value
+
+        result.append(payload)
+
+    return result
+
+
+def _selected_knowledge(
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+    concept_ids: Sequence[str],
+    *,
+    max_principles_per_concept: int = 2,
+    max_exceptions_per_concept: int = 2,
+) -> list[dict[str, Any]]:
+    return _build_knowledge_payload(
+        interpretation,
+        retrieved_knowledge,
+        concept_ids=concept_ids,
+        max_principles_per_concept=max_principles_per_concept,
+        max_exceptions_per_concept=max_exceptions_per_concept,
+    )
+
+
+def _build_specialized_prompt(
+    *,
+    task_id: str,
+    objective: str,
+    evidence: Mapping[str, Any],
+    knowledge: Sequence[Mapping[str, Any]],
+    output_schema: Mapping[str, Any],
+    rules: Sequence[str],
+) -> str:
+    return (
+        f"TASK ID: {task_id}\n\n"
+        f"OBJECTIVE:\n{objective}\n\n"
+        "EVIDENCE:\n"
+        f"{_json(evidence)}\n\n"
+        "RELEVANT KNOWLEDGE:\n"
+        f"{_json(list(knowledge))}\n\n"
+        "TASK RULES:\n"
+        f"{_json(list(rules))}\n\n"
+        "OUTPUT SCHEMA:\n"
+        f"{_json(output_schema)}\n\n"
+        "Return only the JSON object."
+    )
+
+
+def _critical_prompt(
+    weapon_data: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    evidence = {
+        "weapon_name": weapon_data.get("display_name"),
+        "modes": _mode_stat_payload(
+            weapon_data,
+            include_fields=(
+                "critical_chance_percent",
+                "critical_multiplier",
+            ),
+        ),
+        "signals": _compact_signals(
+            interpretation,
+            fields=(
+                "critical_profile_present",
+                "critical_chance",
+                "critical_multiplier",
+                "attack_mode_records_count",
+            ),
+        ),
+    }
+
+    schema = {
+        "concept_id": "critical_profile",
+        "mode_results": [
+            {
+                "mode_id": "str",
+                "assessment": (
+                    "supported|limited|undetermined"
+                ),
+                "summary_es": "str",
+                "strengths_es": ["str"],
+                "limitations_es": ["str"],
+                "improvement_candidates": [
+                    {
+                        "parameter": (
+                            "critical_chance|critical_multiplier"
+                        ),
+                        "direction": "reinforce",
+                        "reason_es": "str",
+                    }
+                ],
+            }
+        ],
+    }
+
+    prompt = _build_specialized_prompt(
+        task_id="critical_profile",
+        objective=(
+            "Evaluate the critical relationship for each supplied mode. "
+            "Do not discuss status, delivery, mechanics, reload, comfort, "
+            "primary job, or complete weapon power."
+        ),
+        evidence=evidence,
+        knowledge=_selected_knowledge(
+            interpretation,
+            retrieved_knowledge,
+            ("critical_profile",),
+        ),
+        output_schema=schema,
+        rules=(
+            "Evaluate every mode independently.",
+            "Critical chance and multiplier must be evaluated together.",
+            "A raw number is not automatically a strength or limitation.",
+            "Do not infer critical opportunity frequency.",
+        ),
+    )
+
+    return {
+        "id": "critical_profile",
+        "system_prompt": SPECIALIZED_SYSTEM_PROMPT,
+        "prompt": prompt,
+    }
+
+
+def _status_prompt(
+    weapon_data: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    evidence = {
+        "weapon_name": weapon_data.get("display_name"),
+        "modes": _mode_stat_payload(
+            weapon_data,
+            include_fields=(
+                "status_chance_percent",
+                "fire_iterations",
+            ),
+        ),
+        "signals": _compact_signals(
+            interpretation,
+            fields=(
+                "status_profile_present",
+                "status_chance",
+                "base_instance_count",
+                "multishot",
+                "eligible_status_opportunity_profile_present",
+            ),
+        ),
+    }
+
+    schema = {
+        "concept_id": "status_application",
+        "mode_results": [
+            {
+                "mode_id": "str",
+                "assessment": (
+                    "supported|limited|undetermined"
+                ),
+                "summary_es": "str",
+                "strengths_es": ["str"],
+                "limitations_es": ["str"],
+                "improvement_candidates": [
+                    {
+                        "parameter": "status_chance",
+                        "direction": "reinforce",
+                        "reason_es": "str",
+                    }
+                ],
+            }
+        ],
+    }
+
+    prompt = _build_specialized_prompt(
+        task_id="status_application",
+        objective=(
+            "Evaluate status probability and only confirmed eligible "
+            "opportunities for each mode. Do not discuss critical, primary "
+            "job, reload, comfort, or unsupported beam tick behavior."
+        ),
+        evidence=evidence,
+        knowledge=_selected_knowledge(
+            interpretation,
+            retrieved_knowledge,
+            ("status_application", "multi_instance_delivery"),
+        ),
+        output_schema=schema,
+        rules=(
+            "Evaluate every mode independently.",
+            "Do not treat heuristic opportunity evidence as confirmed.",
+            "Do not multiply status chance by fire rate or multishot.",
+            "A raw number is not automatically a strength or limitation.",
+        ),
+    )
+
+    return {
+        "id": "status_application",
+        "system_prompt": SPECIALIZED_SYSTEM_PROMPT,
+        "prompt": prompt,
+    }
+
+
+def _mechanics_prompt(
+    weapon_data: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+    active_concepts: set[str],
+) -> dict[str, Any]:
+    concept_ids = tuple(
+        concept_id
+        for concept_id in (
+            "attack_rhythm",
+            "damage_delivery",
+            "description_evidence",
+            "beam_behavior",
+            "multi_instance_delivery",
+            "multi_target_delivery",
+            "multi_mode_behavior",
+            "melee_behavior",
+            "special_mechanic_review",
+        )
+        if concept_id in active_concepts
+    )
+
+    evidence = {
+        "weapon_name": weapon_data.get("display_name"),
+        "category": _mapping(
+            weapon_data.get("classification")
+        ).get("category"),
+        "description_reference": weapon_data.get(
+            "display_description"
+        ),
+        "modes": _mode_stat_payload(
+            weapon_data,
+            include_fields=(
+                "trigger_type",
+                "state_name",
+                "fire_rate",
+                "fire_iterations",
+                "damage_components",
+                "charge_time",
+                "burst",
+            ),
+        ),
+        "signals": _compact_signals(
+            interpretation,
+            fields=(
+                "weapon_category",
+                "trigger_type",
+                "delivery_path",
+                "spatial_application",
+                "uses_beam_delivery",
+                "has_radial_component",
+                "has_chaining",
+                "base_instance_count",
+                "multishot",
+                "attack_mode_records_count",
+                "multi_target_mechanic_records_present",
+                "special_mechanic_records_present",
+            ),
+        ),
+        "records": _compact_records(
+            interpretation,
+            keys=(
+                "description_claims",
+                "multi_target_mechanics",
+                "special_mechanics",
+            ),
+        ),
+    }
+
+    schema = {
+        "concept_id": "mechanical_behavior",
+        "mode_results": [
+            {
+                "mode_id": "str",
+                "input_pattern": "str|undetermined",
+                "delivery_path": "str|undetermined",
+                "spatial_application": "str|undetermined",
+                "mechanics_es": ["str"],
+                "target_pattern": (
+                    "single_target|multi_target|undetermined"
+                ),
+                "job_support": [
+                    {
+                        "job": (
+                            "sustained_damage|focused_damage|group_clear|"
+                            "area_control|status_application|precision_attacks|"
+                            "heavy_attacks|general_use"
+                        ),
+                        "reason_es": "str",
+                    }
+                ],
+                "rejected_jobs": [
+                    {
+                        "job": "str",
+                        "reason_es": "str",
+                    }
+                ],
+            }
+        ],
+    }
+
+    prompt = _build_specialized_prompt(
+        task_id="mechanical_behavior",
+        objective=(
+            "Describe each mode's input rhythm, delivery, explicit mechanics, "
+            "and target pattern. Propose only jobs directly supported by the "
+            "complete mechanical pattern. Do not evaluate critical strength, "
+            "status strength, reload, comfort, or final improvements."
+        ),
+        evidence=evidence,
+        knowledge=_selected_knowledge(
+            interpretation,
+            retrieved_knowledge,
+            concept_ids,
+        ),
+        output_schema=schema,
+        rules=(
+            "Evaluate every mode independently.",
+            "Do not merge incompatible mode statistics or mechanics.",
+            "Treat promotional description wording as non-mechanical unless "
+            "an extracted claim confirms a testable behavior.",
+            "Do not map the phrase Crowd Control directly to area_control.",
+            "Chaining is propagation, not radial coverage.",
+            "Choose area_control only from supported spatial influence beyond "
+            "a single damage event.",
+        ),
+    )
+
+    return {
+        "id": "mechanical_behavior",
+        "system_prompt": SPECIALIZED_SYSTEM_PROMPT,
+        "prompt": prompt,
+    }
+
+
+def _operational_prompt(
+    weapon_data: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+    active_concepts: set[str],
+) -> dict[str, Any]:
+    shared = _mapping(
+        weapon_data.get("shared_stats")
+    )
+
+    concept_ids = tuple(
+        concept_id
+        for concept_id in (
+            "reload_friction",
+            "ammo_consumption",
+            "sustained_damage",
+            "operational_comfort",
+        )
+        if concept_id in active_concepts
+    )
+
+    evidence = {
+        "weapon_name": weapon_data.get("display_name"),
+        "shared_stats": {
+            key: value
+            for key, value in {
+                "magazine_size": shared.get("magazine_size"),
+                "reload_time": shared.get("reload_time"),
+                "accuracy": shared.get("accuracy"),
+                "range": shared.get("range"),
+                "noise": shared.get("noise"),
+                "ammo_capacity": shared.get("ammo_capacity"),
+                "ammo_pickup": shared.get("ammo_pickup"),
+                "ammo_cost_per_damage_tick": shared.get(
+                    "ammo_cost_per_damage_tick"
+                ),
+            }.items()
+            if _is_present(value)
+        },
+        "signals": _compact_signals(
+            interpretation,
+            fields=(
+                "recovery_model",
+                "reload_time",
+                "has_repeatable_attack_cycle",
+                "mechanical_application_continuity_present",
+                "preparation_friction_present",
+                "interruption_friction_present",
+                "handling_friction_present",
+                "positioning_friction_present",
+                "tracking_friction_present",
+            ),
+        ),
+        "records": _compact_records(
+            interpretation,
+            keys=("operational_friction",),
+        ),
+    }
+
+    schema = {
+        "concept_id": "operational_profile",
+        "friction_sources": [
+            {
+                "type": "str",
+                "severity": "low|moderate|high|undetermined",
+                "reason_es": "str",
+            }
+        ],
+        "comfort": {
+            "rating": (
+                "comfortable|manageable|demanding|undetermined"
+            ),
+            "reason_es": "str",
+        },
+        "limitations_es": ["str"],
+        "improvement_candidates": [
+            {
+                "parameter": "str",
+                "direction": "correct_friction|reinforce",
+                "reason_es": "str",
+            }
+        ],
+    }
+
+    prompt = _build_specialized_prompt(
+        task_id="operational_profile",
+        objective=(
+            "Evaluate only confirmed operational friction, repeated-cycle "
+            "limitations, and comfort. Do not select the primary combat job "
+            "or evaluate critical and status profiles."
+        ),
+        evidence=evidence,
+        knowledge=_selected_knowledge(
+            interpretation,
+            retrieved_knowledge,
+            concept_ids,
+        ),
+        output_schema=schema,
+        rules=(
+            "Do not infer friction severity from reload time or magazine size alone.",
+            "Unavailable evidence is not evidence of comfort.",
+            "Do not infer aiming difficulty from accuracy alone.",
+            "Only propose an improvement when it directly addresses confirmed friction.",
+        ),
+    )
+
+    return {
+        "id": "operational_profile",
+        "system_prompt": SPECIALIZED_SYSTEM_PROMPT,
+        "prompt": prompt,
+    }
+
+
+def build_weapon_prompt_plan(
+    weapon_data: Mapping[str, Any],
+    interpretation: Mapping[str, Any],
+    activated_concepts: Sequence[str],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Build the dynamic list of isolated analysis prompts required for one weapon.
+
+    The builder decides which prompts are necessary from activated concepts and
+    deterministic evidence. It does not call the model.
+    """
+    if not isinstance(weapon_data, Mapping):
+        raise PromptBuilderError(
+            "weapon_data must be a Mapping."
+        )
+
+    if not isinstance(interpretation, Mapping):
+        raise PromptBuilderError(
+            "interpretation must be a Mapping."
+        )
+
+    if not isinstance(activated_concepts, Sequence) or isinstance(
+        activated_concepts,
+        (str, bytes),
+    ):
+        raise PromptBuilderError(
+            "activated_concepts must be a sequence."
+        )
+
+    if not isinstance(retrieved_knowledge, Sequence) or isinstance(
+        retrieved_knowledge,
+        (str, bytes),
+    ):
+        raise PromptBuilderError(
+            "retrieved_knowledge must be a sequence."
+        )
+
+    active = {
+        str(concept_id)
+        for concept_id in activated_concepts
+        if concept_id
+    }
+
+    prompts: list[dict[str, Any]] = []
+
+    if "critical_profile" in active:
+        prompts.append(
+            _critical_prompt(
+                weapon_data,
+                interpretation,
+                retrieved_knowledge,
+            )
+        )
+
+    if "status_application" in active:
+        prompts.append(
+            _status_prompt(
+                weapon_data,
+                interpretation,
+                retrieved_knowledge,
+            )
+        )
+
+    mechanical_concepts = {
+        "attack_rhythm",
+        "damage_delivery",
+        "description_evidence",
+        "beam_behavior",
+        "multi_instance_delivery",
+        "multi_target_delivery",
+        "multi_mode_behavior",
+        "melee_behavior",
+        "special_mechanic_review",
+    }
+
+    if active & mechanical_concepts:
+        prompts.append(
+            _mechanics_prompt(
+                weapon_data,
+                interpretation,
+                retrieved_knowledge,
+                active,
+            )
+        )
+
+    operational_concepts = {
+        "reload_friction",
+        "ammo_consumption",
+        "sustained_damage",
+        "operational_comfort",
+    }
+
+    if active & operational_concepts:
+        prompts.append(
+            _operational_prompt(
+                weapon_data,
+                interpretation,
+                retrieved_knowledge,
+                active,
+            )
+        )
+
+    logger.info(
+        "Weapon prompt plan built | weapon=%s | prompts=%s",
+        weapon_data.get("display_name") or "unknown",
+        ",".join(
+            task["id"]
+            for task in prompts
+        )
+        or "none",
+    )
+
+    return prompts
+
+
+def build_synthesis_prompt(
+    weapon_data: Mapping[str, Any],
+    partial_results: Sequence[Mapping[str, Any]],
+    retrieved_knowledge: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """
+    Build the final synthesis prompt from partial JSON analysis results only.
+    """
+    if not isinstance(weapon_data, Mapping):
+        raise PromptBuilderError(
+            "weapon_data must be a Mapping."
+        )
+
+    if not isinstance(partial_results, Sequence) or isinstance(
+        partial_results,
+        (str, bytes),
+    ):
+        raise PromptBuilderError(
+            "partial_results must be a sequence."
+        )
+
+    allowed_parameters = [
+        *available_improvement_parameters(
+            weapon_data
+        ),
+        "none",
+    ]
+
+    concept_index = _concept_map(
+        retrieved_knowledge
+    )
+
+    synthesis_knowledge = [
+        concept_index[concept_id]
+        for concept_id in (
+            "primary_job_selection",
+            "improvement_selection",
+        )
+        if concept_id in concept_index
+    ]
+
+    evidence = {
+        "weapon_name": weapon_data.get("display_name"),
+        "partial_results": list(partial_results),
+    }
+
+    constraints = {
+        "allowed_primary_jobs": list(JOB_KEYS),
+        "allowed_comfort_ratings": list(COMFORT_KEYS),
+        "allowed_improvement_directions": list(
+            IMPROVEMENT_DIRECTIONS
+        ),
+        "allowed_improvement_parameters": allowed_parameters,
+        "maximum_improvements": 3,
+    }
+
+    schema = {
+        "behavior_summary_es": "str",
+        "primary_job": "one allowed job",
+        "job_reason_es": "str",
+        "strengths_es": ["str"],
+        "limitations_es": ["str"],
+        "improvement_priorities": [
+            {
+                "parameter": "one allowed parameter or none",
+                "direction": (
+                    "reinforce|correct_friction|none"
+                ),
+                "reason_es": "str",
+            }
+        ],
+        "comfort": {
+            "rating": (
+                "comfortable|manageable|demanding|undetermined"
+            ),
+            "reason_es": "str",
+        },
+    }
+
+    prompt = (
+        "OBJECTIVE:\n"
+        "Synthesize the final weapon analysis from partial results only.\n\n"
+        "PARTIAL ANALYSIS RESULTS:\n"
+        f"{_json(evidence)}\n\n"
+        "SYNTHESIS KNOWLEDGE:\n"
+        f"{_json(synthesis_knowledge)}\n\n"
+        "GENERATION CONSTRAINTS:\n"
+        f"{_json(constraints)}\n\n"
+        "OUTPUT SCHEMA:\n"
+        f"{_json(schema)}\n\n"
+        "RULES:\n"
+        "- Select exactly one primary job.\n"
+        "- Prefer explicit mechanical job support over promotional wording.\n"
+        "- Do not classify a raw number as a strength or limitation unless a "
+        "partial result established the relationship.\n"
+        "- Select up to three improvements already supported by partial results.\n"
+        "- Use none only as the sole improvement with direction none.\n"
+        "- Preserve undetermined conclusions when evidence remains incomplete.\n"
+        "- Return only the JSON object."
+    )
+
+    return {
+        "id": "final_synthesis",
+        "system_prompt": SYNTHESIS_SYSTEM_PROMPT,
+        "prompt": prompt,
+    }
+
+
 def build_weapon_prompt(
     weapon_data: Mapping[str, Any],
     analysis_context: str,
 ) -> str:
     """
-    Build the single prompt used by the local generation stage.
+    Build the legacy single prompt used by the current local generation stage.
+
+    Retained for compatibility while the multi-prompt flow is tested.
     """
-    if not isinstance(
-        weapon_data,
-        Mapping,
-    ):
+    if not isinstance(weapon_data, Mapping):
         raise PromptBuilderError(
             "weapon_data must be a Mapping."
         )
@@ -1111,10 +1665,8 @@ def build_weapon_prompt(
             "analysis_context cannot be empty."
         )
 
-    safe_weapon_data = (
-        _safe_weapon_data(
-            weapon_data
-        )
+    safe_weapon_data = _safe_weapon_data(
+        weapon_data
     )
 
     allowed_parameters = list(
@@ -1136,30 +1688,20 @@ def build_weapon_prompt(
     )
 
     generation_constraints = {
-        "allowed_primary_jobs": list(
-            JOB_KEYS
+        "allowed_primary_jobs": list(JOB_KEYS),
+        "allowed_comfort_ratings": list(COMFORT_KEYS),
+        "allowed_improvement_directions": list(
+            IMPROVEMENT_DIRECTIONS
         ),
-        "allowed_comfort_ratings": list(
-            COMFORT_KEYS
-        ),
-        "allowed_improvement_directions":
-            list(
-                IMPROVEMENT_DIRECTIONS
-            ),
         "allowed_improvement_parameters": [
             *allowed_parameters,
             "none",
         ],
-        "available_operational_fields":
-            operational_fields,
-        "absent_operational_fields":
-            absent_fields,
-        "unavailable_evidence_is_not_false":
-            True,
-        "heuristic_evidence_is_not_confirmed":
-            True,
-        "intrinsic_mechanics_are_not_improvement_parameters":
-            True,
+        "available_operational_fields": operational_fields,
+        "absent_operational_fields": absent_fields,
+        "unavailable_evidence_is_not_false": True,
+        "heuristic_evidence_is_not_confirmed": True,
+        "intrinsic_mechanics_are_not_improvement_parameters": True,
     }
 
     prompt = (
@@ -1186,16 +1728,8 @@ def build_weapon_prompt(
         "| absent_operational_fields=%s",
         len(prompt),
         len(context),
-        (
-            ",".join(
-                allowed_parameters
-            )
-            or "none"
-        ),
-        (
-            ",".join(absent_fields)
-            or "none"
-        ),
+        ",".join(allowed_parameters) or "none",
+        ",".join(absent_fields) or "none",
     )
 
     return prompt
