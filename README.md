@@ -1,245 +1,696 @@
-
 # Warframe Weapon Optimization Assistant
 
-Warframe Weapon Optimization Assistant is a local AI-powered application designed to help players understand how a weapon behaves, identify its most plausible role, and determine which statistics may support that role.
+A local, evidence-aware weapon analysis system for **Warframe**.
 
-The project currently uses **Qwen2.5-3B-Instruct-Q4_K_M**, running locally through `llama-cpp-python`. The model receives structured weapon data and analyzes it through several independent stages instead of attempting to generate a complete build from a single large prompt.
+The project transforms raw weapon export data into normalized statistics, auditable interpretation signals, relevant domain knowledge, and concise AI-generated recommendations.
 
-The assistant is not intended to calculate exact DPS, replace community guides, or determine a universally correct build. Warframe weapons frequently include unique mechanics, alternate firing modes, special effects, and interactions that cannot be reliably evaluated through rigid numerical thresholds alone.
-
-Instead, the project explores a logical analysis approach based on weapon behavior, attack delivery, declared mechanics, and operational characteristics.
-
-## Current Analysis Flow
-
-The current pipeline separates the analysis into four stages:
-
-1. **Weapon behavior**
-   Describes how the weapon attacks, how it delivers its hits, and whether it has area effects, multiple hit instances, charged attacks, continuous fire, or declared special mechanics.
-
-2. **Primary job**
-   Suggests the most plausible role for the weapon, such as sustained damage, focused damage, group clearing, status application, precision attacks, or heavy attacks.
-
-3. **Improvement directions**
-   Identifies statistics that may reinforce the selected role or reduce an observable operational limitation.
-
-4. **Operational comfort**
-   Evaluates handling characteristics such as magazine size, reload time, firing rhythm, projectile speed, range, charge time, and other available usability parameters.
-
-Each stage starts with a fresh model context. Only structured results selected by Python are passed between stages, preventing hidden conversation history from affecting later conclusions.
-
-## Main Features
-
-* Local inference using **Qwen2.5-3B-Instruct-Q4_K_M**.
-* No internet connection required during normal operation.
-* Structured weapon input instead of unrestricted conversation.
-* Independent prompts for behavior, role, improvements, and comfort.
-* Optional free-text field for unique weapon mechanics.
-* JSON-formatted model responses.
-* Terminal debugging for prompts, raw responses, parsed data, and analysis state.
-* Progress indicators for each inference stage.
-* Explainable recommendations instead of a single numerical score.
-* Separation between objective weapon data and AI interpretation.
-
-## Input Structure
-
-The application accepts structured weapon information such as:
-
-* Weapon category.
-* Firing mode.
-* Damage delivery type.
-* Base damage distribution.
-* Critical chance and critical multiplier.
-* Status chance.
-* Fire rate.
-* Multishot.
-* Magazine size.
-* Reload time.
-* Pellet count.
-* Projectile speed.
-* Beam range.
-* Explosion radius.
-* Melee range and attack speed.
-* Heavy attack information.
-* Optional unique or special mechanic description.
-
-The unique mechanic field is optional. If it is empty, the model must not invent or infer a passive, alternate attack, transformation, or special effect from the weapon name.
-
-## Architecture
+Rather than asking a language model to understand an entire weapon from unstructured data, the application performs most analytical work deterministically before generation:
 
 ```text
-Structured weapon data
-        ↓
-weapon_parser.py
-Validates and normalizes objective data
-        ↓
-prompt_builder.py
-Selects the data required for each analysis stage
-        ↓
-weapon_interpreter.py
-Coordinates the stages and validates model responses
-        ↓
-ai.py
-Loads Qwen once and runs independent local inferences
-        ↓
-Structured analysis result
+Warframe export data
+→ normalization
+→ evidence-aware interpretation
+→ rule-based concept retrieval
+→ compact prompt construction
+→ local language model
+→ validated JSON analysis
 ```
 
-### `weapon_parser.py`
+The language model is primarily responsible for contextual synthesis and explanation. It is not expected to invent weapon mechanics, reconstruct missing statistics, or make unsupported build claims.
 
-Responsible for:
+---
 
-* Validating required fields.
-* Normalizing values.
-* Separating ranged and melee data.
-* Preserving optional special mechanics.
-* Producing consistent structured input.
+## Project status
 
-It should not decide whether a weapon is good, bad, critical-focused, status-focused, or suitable for a specific build.
+**Active prototype — under continued refinement**
 
-### `prompt_builder.py`
+The deterministic analysis pipeline is functional and covered by automated tests. The current interpretation contract uses version 6 and preserves:
 
-Responsible for:
+* Structured and derived signals
+* Confidence levels
+* Source paths
+* Per-mode profiles
+* Description-derived mechanic records
+* Multi-target mechanic records
+* Operational friction records
+* Activated knowledge concepts
+* Valid improvement parameters
 
-* Selecting only the relevant fields for each stage.
-* Preventing unnecessary data repetition.
-* Building compact stage-specific data prompts.
+The main remaining experimentation is concentrated in the final generation layer:
 
-### `weapon_interpreter.py`
+* Refining `modules/prompt_builder.py`
+* Refining validation and repair behavior in `modules/ai.py`
+* Comparing local language models
+* Deciding whether to keep the current Qwen model, use a larger model, or perform targeted fine-tuning
+* Improving the separation between factual weapon data and AI recommendations in the interface
 
-Responsible for:
+Some files, especially `main.py`, `modules/ai.py`, and parts of the testing organization, should still be considered provisional.
 
-* Running the stages in the correct order.
-* Preserving structured results between stages.
-* Parsing JSON responses.
-* Validating allowed jobs, parameters, and comfort classifications.
-* Handling retries when the model breaks the expected format.
+This repository should not yet be treated as a stable release or finalized public API.
 
-### `ai.py`
+---
 
-Responsible for:
+## What the project does
 
-* Loading the local GGUF model once.
-* Providing the stable Warframe reasoning context.
-* Supplying stage-specific examples.
-* Creating a fresh conversation for every stage.
-* Executing local inference.
-* Reporting stage progress in the terminal.
+The assistant can:
 
-## Current Status
+* Normalize structured Warframe weapon data
+* Separate weapon statistics from inferred behavior
+* Identify relevant attack modes and damage-delivery patterns
+* Detect supported mechanics such as beam delivery, chaining, radial application, and reload behavior
+* Evaluate critical and status profiles without treating individual statistics as universal verdicts
+* Retrieve only the knowledge concepts relevant to the selected weapon
+* Produce concise Spanish-language analysis
+* Suggest a primary practical role
+* Identify supported strengths and limitations
+* Recommend valid improvement parameters
+* Separate operational comfort from combat function
+* Validate the generated JSON before presenting it
 
-The current implementation is an experimental checkpoint.
+The project is designed around traceable evidence. Deterministic conclusions retain their source fields and confidence classification.
 
-Qwen2.5-3B follows the requested JSON format more consistently than the previous SmolLM2 model and identifies basic weapon roles more reliably. For example, an automatic hitscan weapon with repeated direct attacks and a large magazine can be recognized as a sustained-damage weapon.
+---
 
-However, several parts still require refinement:
+## What the project does not do
 
-* Behavioral descriptions may use imprecise wording.
-* Operational relationships such as magazine duration and reload frequency need better preprocessing.
-* Improvement suggestions may focus on correcting a weakness while overlooking an existing strength worth reinforcing.
-* Comfort analysis may incorrectly treat fast fire rate as a usability problem.
-* Missing accuracy, recoil, and ammunition information must be handled more explicitly.
-* More contrasting weapon examples are needed to test the reasoning system.
+The assistant is not intended to:
 
-The current output should therefore be treated as an analysis prototype, not as a final build recommendation system.
+* Calculate real DPS
+* Replace Warframe build calculators
+* Generate complete mod configurations
+* Recommend Warframes, companions, Arcanes, Rivens, or external loadouts
+* Infer mechanics from weapon names
+* Invent missing statistics
+* Treat community popularity as weapon quality
+* Declare weapons meta, obsolete, useless, or overpowered
+* Guarantee optimal recommendations for every game mode or enemy type
+* Replace practical testing or established community research
 
-## Planned Improvements
+The current goal is to explain a weapon's supported behavior and improvement directions, not to produce a complete endgame build.
 
-The next development stage will focus on stabilizing the JSON input and expected output before modifying the user interface.
+---
 
-Planned module changes include:
+## Current architecture
 
-### `modules/weapon_parser.py`
+### 1. Weapon database and normalization
 
-* Add objective operational facts.
-* Estimate firing-window duration when the weapon type supports it.
-* Estimate the relationship between firing time and reload interruption.
-* Add optional ammunition, range, Punch Through, and weapon-class fields.
-* Avoid calculations that are invalid for beams, batteries, shell reloads, or unique weapon mechanics.
+`modules/weapon_database.py`
 
-### `modules/prompt_builder.py`
+Processes Warframe export data and converts eligible weapons into a consistent normalized schema.
 
-* Include derived operational facts in the appropriate stages.
-* Pass newly supported optional fields.
-* Reduce ambiguous or unnecessary data.
+The normalized representation preserves information such as:
 
-### `modules/weapon_interpreter.py`
+* Classification
+* Weapon class
+* Shared statistics
+* Root statistics
+* Attack modes
+* Damage components
+* Trigger behavior
+* Critical and status values
+* Magazine and reload information
+* Structured mechanics when available
+* Description references
+* Normalization warnings
 
-* Improve response validation.
-* Reject unsupported comfort conclusions.
-* Prevent positive traits from being returned as frictions.
-* Better separate reinforcement suggestions from corrections.
+Raw source files and generated normalized datasets may be excluded from the public repository and rebuilt locally.
+
+### 2. Deterministic interpretation
+
+`modules/weapon_interpreter.py`
+
+Converts normalized weapon data into an auditable interpretation contract.
+
+The version 6 output includes:
+
+```text
+signals
+flat_signals
+mode_profiles
+records
+```
+
+Each full signal may contain:
+
+```json
+{
+  "value": true,
+  "confidence": "derived",
+  "source_paths": [
+    "attack_modes[].damage_components"
+  ],
+  "reason": null
+}
+```
+
+Supported confidence categories include:
+
+* `structured`
+* `normalized`
+* `derived`
+* `validated_description`
+* `heuristic`
+* `unavailable`
+
+Unknown evidence is not automatically treated as false.
+
+### 3. Rule evaluation
+
+`modules/rule_engine.py`
+
+Evaluates the interpretation signals against the local retrieval rules.
+
+Rules determine which knowledge concepts are relevant to the current weapon. They can evaluate values and confidence requirements without delegating concept selection to the language model.
+
+Example flow:
+
+```text
+confirmed beam delivery
+→ retrieve beam_behavior
+
+confirmed chaining
+→ retrieve multi_target_delivery
+
+critical chance and multiplier present
+→ retrieve critical_profile
+```
+
+### 4. Knowledge library
+
+`knowledge/concepts/`
+
+Contains reusable Warframe weapon-analysis concepts.
+
+Current concept areas include:
+
+* Primary job selection
+* Improvement selection
+* Critical profile
+* Status application
+* Attack rhythm
+* Damage delivery
+* Description evidence
+* Reload friction
+* Sustained damage
+* Beam behavior
+* Multi-target delivery
+* Multi-instance delivery
+* Multi-mode behavior
+* Operational comfort
+* Melee behavior
+* Ammunition pressure
+* Special mechanics
+
+`knowledge/rules/`
+
+Contains deterministic retrieval rules that connect interpretation signals to relevant concepts.
+
+The language model does not independently browse this library. Python selects the relevant concepts before generation.
+
+### 5. Prompt construction
+
+`modules/prompt_builder.py`
+
+Builds a compact evidence package for the local model.
+
+The prompt builder removes or avoids:
+
+* `null` values
+* Empty structures
+* Unavailable evidence
+* Heuristic evidence presented as confirmed
+* Irrelevant negative flags
+* Redundant normalized data
+* Unrelated knowledge branches
+
+The complete pipeline state remains available for auditing, while the model receives only the evidence needed for final synthesis.
+
+### 6. Local AI generation
+
+`modules/ai.py`
+
+Loads the local GGUF model through `llama-cpp-python`, generates the final analysis, validates the JSON schema, checks selected semantic contradictions, and performs one optional repair attempt when generation fails validation.
+
+The current development model is expected at:
+
+```text
+models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
+```
+
+The model file is not included in the repository.
+
+The current model is useful for development, but a slightly larger local model may provide more reliable reasoning while preserving the same deterministic architecture.
+
+### 7. Pipeline orchestration
+
+`modules/weapon_pipeline.py`
+
+Coordinates the deterministic stages:
+
+```text
+normalized weapon
+→ interpretation
+→ activated concepts
+→ retrieved knowledge
+→ analysis context
+```
+
+The model is only invoked after this state has been prepared.
+
+---
+
+## Repository scope
+
+This public repository contains the reproducible core of the project.
+
+Some resources are intentionally excluded because they are large, generated, machine-specific, experimental, or not ready for publication.
+
+Typical excluded resources include:
+
+* Local GGUF models
+* Other model binaries
+* Virtual environments
+* Environment-variable files
+* Logs
+* Python caches
+* Test caches
+* Coverage data
+* IDE configuration
+* Local Flask instance data
+* Temporary files
+* Generated datasets
+* Generated analysis libraries
+* Experimental outputs
+* Provisional local tests
+
+Their absence does not necessarily indicate that the project is broken or abandoned.
+
+The intention is to publish the core implementation while keeping large and reproducible artifacts outside version control.
+
+---
+
+## Expected local paths
+
+The current development structure expects paths similar to:
+
+```text
+Warframe-Weapon-Optimization-Assistant/
+├── data/
+│   ├── raw/
+│   │   ├── ExportWeapons.json
+│   │   ├── ExportWeapons.metadata.json
+│   │   ├── ExportWeapons.profile.txt
+│   │   └── dict.en.json
+│   └── normalized/
+│       └── weapons.json
+├── knowledge/
+│   ├── concepts/
+│   └── rules/
+├── models/
+│   └── Qwen2.5-3B-Instruct-Q4_K_M.gguf
+├── modules/
+├── tests/
+├── main.py
+├── requirements.txt
+└── README.md
+```
+
+Depending on the current branch and development stage, generated data directories may need to be created locally.
+
+---
+
+## Requirements
+
+* Python 3.12 or compatible version
+* A C/C++ build environment supported by `llama-cpp-python`
+* Sufficient RAM for the selected GGUF model
+* Optional NVIDIA GPU and CUDA-compatible `llama-cpp-python` build
+* Warframe export data for rebuilding the local weapon database
+
+The current Python dependencies are listed in:
+
+```text
+requirements.txt
+```
+
+---
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/ZaidSaenz/Warframe-Weapon-Optimization-Assistant.git
+cd Warframe-Weapon-Optimization-Assistant
+```
+
+### 2. Create a virtual environment
+
+Linux or macOS:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Installing `llama-cpp-python` with GPU acceleration may require a platform-specific installation command. The default requirements file does not guarantee CUDA acceleration on every system.
+
+### 4. Add the local model
+
+Create the model directory:
+
+```bash
+mkdir -p models
+```
+
+Place the expected GGUF model at:
+
+```text
+models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
+```
+
+The configured model name and path can currently be changed in:
+
+```text
+modules/ai.py
+```
+
+Model files must not be committed to the repository.
+
+### 5. Add the Warframe source data
+
+Place the required source exports in:
+
+```text
+data/raw/
+```
+
+Expected source files may include:
+
+```text
+ExportWeapons.json
+ExportWeapons.metadata.json
+ExportWeapons.profile.txt
+dict.en.json
+```
+
+The exact source set may change as normalization support evolves.
+
+### 6. Generate the normalized database
+
+Run the current normalization command:
+
+```bash
+python -m modules.weapon_database normalize
+```
+
+The expected output is:
+
+```text
+data/normalized/weapons.json
+```
+
+Review the normalization report for excluded, partial, fallback, or suspicious records before relying on the generated database.
+
+---
+
+## Running the tests
+
+```bash
+python -m pytest -q
+```
+
+The current test suite covers the interpretation contract, rule evaluation, knowledge retrieval, prompt construction compatibility, and pipeline integration.
+
+Tests are still being reorganized. Some experimental or provisional tests may remain excluded until their structure is suitable for publication.
+
+---
+
+## Inspecting the deterministic pipeline
+
+The deterministic pipeline can be tested without loading the language model.
+
+Example:
+
+```bash
+python - <<'PY'
+from pprint import pprint
+
+from modules.weapon_database import find_weapons
+from modules.weapon_pipeline import prepare_weapon_analysis
+
+matches = find_weapons("Amprex")
+
+if not matches:
+    raise SystemExit("Weapon not found.")
+
+state = prepare_weapon_analysis(matches[0])
+
+print("Activated concepts:")
+pprint(state["activated_concepts"])
+
+print("\nFlat signals:")
+pprint(state["flat_signals"])
+
+print("\nRecords:")
+pprint(state["records"])
+PY
+```
+
+---
+
+## Inspecting the generated prompt without AI
+
+```bash
+python - <<'PY'
+from modules.prompt_builder import build_weapon_prompt
+from modules.weapon_database import find_weapons
+from modules.weapon_pipeline import prepare_weapon_analysis
+
+matches = find_weapons("Amprex")
+
+if not matches:
+    raise SystemExit("Weapon not found.")
+
+prepared = prepare_weapon_analysis(matches[0])
+
+prompt = build_weapon_prompt(
+    weapon_data=prepared["weapon_data"],
+    analysis_context=prepared["analysis_context"],
+)
+
+print(prompt)
+print(f"\nPrompt length: {len(prompt)} characters")
+PY
+```
+
+This command prepares normalization-derived evidence, rule retrieval, and relevant knowledge without loading or calling the local model.
+
+---
+
+## Running a local analysis
+
+```bash
+python - <<'PY'
+from modules.ai import analyze_weapon_state, format_analysis
+from modules.weapon_database import find_weapons
+
+matches = find_weapons("Amprex")
+
+if not matches:
+    raise SystemExit("Weapon not found.")
+
+state = analyze_weapon_state(matches[0])
+
+print(format_analysis(state["analysis"]))
+PY
+```
+
+The first inference may take longer because the GGUF model is loaded lazily.
+
+---
+
+## Running the application
+
+```bash
+python main.py
+```
+
+The current Flask interface is provisional and may change significantly.
+
+The planned interface direction is to separate:
+
+### Factual weapon data
+
+Displayed directly from the normalized database:
+
+* Weapon category
+* Weapon class
+* Mastery rank
+* Damage
+* Critical statistics
+* Status statistics
+* Fire rate or attack speed
+* Magazine
+* Reload
+* Multishot
+* Trigger type
+* Supported mechanics
+* Riven disposition when preserved
+
+### AI-generated analysis
+
+Displayed separately:
+
+* Primary practical role
+* Reasoning
+* Strengths
+* Limitations
+* Improvement priorities
+* Operational comfort
+
+This separation keeps factual data visible even when generation quality varies.
+
+---
+
+## Generated analysis library
+
+A future stage of the project may generate and store validated analyses for all eligible weapons.
+
+Planned flow:
+
+```text
+normalized weapon database
+→ deterministic pipeline
+→ local AI generation
+→ validation
+→ versioned analysis library
+```
+
+This would allow the user interface to read pre-generated results instead of loading the model for every request.
+
+Stored records should eventually preserve:
+
+* Weapon ID
+* Weapon name
+* Source schema version
+* Interpretation version
+* Knowledge version
+* Prompt version
+* Model ID
+* Activated concepts
+* Relevant signals
+* Validation status
+* Final analysis
+* Prompt or evidence hash
+
+This would support later filtering, comparison, dashboards, similarity searches, and model-regression testing.
+
+---
+
+## Development priorities
+
+### Current
+
+* Refine `modules/prompt_builder.py`
+* Refine validation and repair in `modules/ai.py`
+* Benchmark larger local models
+* Evaluate targeted fine-tuning versus model replacement
+* Preserve the stable deterministic pipeline
+* Build a control set covering multiple weapon behaviors
+
+### Next
+
+* Separate factual data from recommendations in the interface
+* Preserve and display Riven disposition
+* Improve application configuration
+* Add `.env.example` or `config.example`
+* Document model-selection options
+* Reorganize the test suite
+* Add batch-generation tooling
+* Version generated analysis results
+
+### Later
+
+* Build a complete offline weapon-analysis library
+* Add weapon comparisons
+* Add behavioral similarity searches
+* Add filters by primary role, mechanics, friction, and improvement direction
+* Add data-quality and confidence dashboards
+
+---
+
+## Provisional components
+
+The following areas are expected to change:
+
+### `main.py`
+
+The current application entry point and UI are experimental.
 
 ### `modules/ai.py`
 
-* Refine few-shot examples.
-* Improve behavioral terminology.
-* Add clearer examples for sustained damage, focused damage, group clearing, status application, precision attacks, and heavy attacks.
-* Improve rules for comfort and improvement analysis.
+Model selection, generation parameters, semantic validation, and repair behavior remain under evaluation.
 
-### User interface
+### `modules/prompt_builder.py`
 
-The interface will be updated only after the input schema and analysis flow are stable.
+The prompt is being refined to balance:
 
-Future interface changes may include:
+* Compactness
+* Evidence coverage
+* Output quality
+* Small-model reliability
+* Strict grounding
 
-* Optional unique-mechanic text area.
-* Additional weapon fields.
-* Separate output sections for behavior, role, improvements, and comfort.
-* Better visibility of missing information and analysis uncertainty.
+### Tests
 
-## Testing from the Terminal
+The interpretation and rule contracts are covered, but test organization and the publication of broader weapon-control cases remain ongoing work.
 
-Use the built-in sample:
+### Model choice
 
-```bash
-python -m modules.ai --sample
-```
+The current Qwen 3B model is not necessarily the final model. Larger local models are being considered for more consistent evidence-based synthesis.
 
-Show the structured result:
+---
 
-```bash
-python -m modules.ai \
-  --sample \
-  --show-state
-```
+## Design principles
 
-Inspect prompts and raw model responses:
+* Deterministic evidence before language generation
+* Traceable conclusions
+* Unknown does not mean false
+* Mechanics are not improvement parameters
+* Statistics are evidence, not universal verdicts
+* Operational comfort is separate from combat function
+* The language model should explain, not invent
+* Generated recommendations must remain machine-validatable
+* Large and reproducible artifacts should remain outside Git
+* Public documentation should distinguish deliberate exclusions from missing work
 
-```bash
-python -m modules.ai \
-  --sample \
-  --show-state \
-  --show-prompts \
-  --show-raw
-```
+---
 
-Validate the input and inspect the first prompt without running inference:
+## Disclaimer
 
-```bash
-python -m modules.ai \
-  --sample \
-  --no-ai
-```
+This is an independent fan project and is not affiliated with or endorsed by Digital Extremes.
 
-Analyze a custom JSON file:
+Warframe and its related names, assets, and data are property of their respective owners.
 
-```bash
-python -m modules.ai \
-  --input weapon_test.json \
-  --show-state \
-  --show-prompts \
-  --show-raw
-```
+Weapon behavior, statistics, and disposition values may change through game updates. Generated analyses should be rebuilt when source data, interpretation rules, knowledge concepts, prompts, or models change.
 
-## Project Goal
+---
 
-The primary goal of this project is to explore how a small local language model can interpret structured game data through logical relationships and examples.
+## License
 
-The project does not aim to create a rigid mathematical tier list or claim that every weapon has one correct use. Its goal is to provide a clear and explainable interpretation of:
-
-* What the weapon does.
-* What role its behavior may support.
-* Which parameters may reinforce that role.
-* What operational characteristics may affect its usability.
-
-Although this implementation focuses on **Warframe**, the architecture can be adapted to other games or structured optimization problems by replacing the domain context, examples, input schema, and permitted analysis categories.
+This project is distributed under the MIT License. See `LICENSE` for details.
