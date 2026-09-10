@@ -1,0 +1,75 @@
+{
+  "schema_version": "2.2.0",
+  "raw_entries": 843,
+  "selected_weapons": 656,
+  "excluded_entries": 187,
+  "exclusion_reasons": {
+    "missing_slot": 187
+  },
+  "product_categories": {
+    "Melee": 224,
+    "LongGuns": 194,
+    "Pistols": 148,
+    "SpecialItems": 36,
+    "SentinelWeapons": 24,
+    "SpaceGuns": 21,
+    "SpaceMelee": 8,
+    "OperatorAmps": 1
+  },
+  "evaluated_populations": {
+    "LongGuns": {
+      "population_size": 194,
+      "metric_sample_sizes": {
+        "critical_chance": 194,
+        "critical_multiplier": 194,
+        "status_chance": 194,
+        "fire_rate": 194,
+        "magazine_size": 192,
+        "reload_duration_seconds": 194,
+        "base_volley_damage": 194
+      }
+    },
+    "Melee": {
+      "population_size": 224,
+      "metric_sample_sizes": {
+        "total_damage": 224,
+        "critical_chance": 224,
+        "critical_multiplier": 224,
+        "status_chance": 224,
+        "attack_speed": 224,
+        "range_meters": 223,
+        "follow_through": 223,
+        "combo_duration_seconds": 223,
+        "heavy_attack_damage": 223,
+        "heavy_windup_seconds": 223
+      }
+    },
+    "Pistols": {
+      "population_size": 148,
+      "metric_sample_sizes": {
+        "critical_chance": 148,
+        "critical_multiplier": 148,
+        "status_chance": 148,
+        "fire_rate": 148,
+        "magazine_size": 146,
+        "reload_duration_seconds": 148,
+        "base_volley_damage": 148
+      }
+    }
+  },
+  "exact_duplicate_behaviour_records_removed": 6,
+  "missing_localized_names": 0,
+  "missing_localized_descriptions": 0,
+  "notes": [
+    "Percentiles describe relative position, not weapon quality.",
+    "Extreme labels describe unusually high/low values, not good/bad values.",
+    "Riven disposition uses a fixed rule instead of population percentiles.",
+    "Accuracy is preserved as raw context but is not statistically evaluated.",
+    "Behaviour records preserve structural damage components without semantic merging.",
+    "Behaviour roles are conservative: primary, alternate_mode, or unclassified.",
+    "Root damage composition comes from damagePerShot and is exposed directly.",
+    "Official descriptions are exposed as qualitative weapon context for the language model.",
+    "Descriptions never override structured numerical or mechanical data.",
+    "Only LongGuns, Pistols, and Melee receive population evaluation in V1."
+  ]
+}

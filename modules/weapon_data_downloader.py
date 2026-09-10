@@ -1,3 +1,5 @@
+# Downloads, validates, versions, and stores the raw Warframe weapon dataset.
+
 from __future__ import annotations
 
 import argparse
