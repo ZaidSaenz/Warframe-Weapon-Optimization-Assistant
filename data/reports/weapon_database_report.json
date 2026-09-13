@@ -1,18 +1,20 @@
 {
-  "schema_version": "2.2.0",
+  "schema_version": "2.4.1",
   "raw_entries": 843,
-  "selected_weapons": 656,
-  "excluded_entries": 187,
+  "selectable_weapons_before_name_canonicalization": 656,
+  "selected_weapons": 654,
+  "excluded_entries": 189,
   "exclusion_reasons": {
-    "missing_slot": 187
+    "missing_slot": 187,
+    "duplicate_localized_name_noncanonical": 2
   },
   "product_categories": {
     "Melee": 224,
     "LongGuns": 194,
-    "Pistols": 148,
+    "Pistols": 147,
     "SpecialItems": 36,
     "SentinelWeapons": 24,
-    "SpaceGuns": 21,
+    "SpaceGuns": 20,
     "SpaceMelee": 8,
     "OperatorAmps": 1
   },
@@ -26,7 +28,7 @@
         "fire_rate": 194,
         "magazine_size": 192,
         "reload_duration_seconds": 194,
-        "base_volley_damage": 194
+        "base_multishot_damage": 194
       }
     },
     "Melee": {
@@ -45,31 +47,85 @@
       }
     },
     "Pistols": {
-      "population_size": 148,
+      "population_size": 147,
       "metric_sample_sizes": {
-        "critical_chance": 148,
-        "critical_multiplier": 148,
-        "status_chance": 148,
-        "fire_rate": 148,
+        "critical_chance": 147,
+        "critical_multiplier": 147,
+        "status_chance": 147,
+        "fire_rate": 147,
         "magazine_size": 146,
-        "reload_duration_seconds": 148,
-        "base_volley_damage": 148
+        "reload_duration_seconds": 147,
+        "base_multishot_damage": 147
       }
     }
   },
   "exact_duplicate_behaviour_records_removed": 6,
+  "duplicate_name_records_removed": 2,
+  "duplicate_name_collisions": [
+    {
+      "name": "Grimoire",
+      "kept": "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire",
+      "removed": [
+        "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"
+      ],
+      "candidates": [
+        {
+          "weapon_id": "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire",
+          "penalty": 0,
+          "reasons": []
+        },
+        {
+          "weapon_id": "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire",
+          "penalty": 100,
+          "reasons": [
+            "doppelganger_path"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Imperator Vandal",
+      "kept": "/Lotus/Weapons/Tenno/Archwing/Primary/FoldingMachineGun/ArchMachineGunVandal",
+      "removed": [
+        "/Lotus/Types/JadeShadowsPart2Mission/Enemies/Ground/Elites/JS2MCorruptedBossMinigun"
+      ],
+      "candidates": [
+        {
+          "weapon_id": "/Lotus/Weapons/Tenno/Archwing/Primary/FoldingMachineGun/ArchMachineGunVandal",
+          "penalty": 0,
+          "reasons": []
+        },
+        {
+          "weapon_id": "/Lotus/Types/JadeShadowsPart2Mission/Enemies/Ground/Elites/JS2MCorruptedBossMinigun",
+          "penalty": 75,
+          "reasons": [
+            "enemy_path",
+            "boss_path"
+          ]
+        }
+      ]
+    }
+  ],
   "missing_localized_names": 0,
   "missing_localized_descriptions": 0,
   "notes": [
-    "Percentiles describe relative position, not weapon quality.",
-    "Extreme labels describe unusually high/low values, not good/bad values.",
+    "Population percentiles describe relative position, not weapon quality.",
+    "Relative bands describe numerical rarity only, never good/bad quality.",
+    "Probability-like root statistics are exposed as percentages from 0 to 100.",
+    "Population percentile fields are explicitly named population_percentile.",
+    "Canonical stat objects keep the same type whether or not population statistics are available.",
     "Riven disposition uses a fixed rule instead of population percentiles.",
-    "Accuracy is preserved as raw context but is not statistically evaluated.",
+    "Accuracy is preserved as raw_accuracy_value and is not semantically interpreted.",
+    "Nested behaviour procChance values are preserved as proc_chance_raw until their exact semantics are verified.",
     "Behaviour records preserve structural damage components without semantic merging.",
     "Behaviour roles are conservative: primary, alternate_mode, or unclassified.",
-    "Root damage composition comes from damagePerShot and is exposed directly.",
+    "The first behaviour compatible with the root trigger becomes primary.",
+    "Root damage amounts are exposed under base_damage.by_type; only distribution_percent represents percentages.",
+    "Damage distribution is exposed as percentages from 0 to 100.",
+    "base_multishot_damage means totalDamage multiplied by multishot only; it is not DPS or full trigger-event damage.",
     "Official descriptions are exposed as qualitative weapon context for the language model.",
     "Descriptions never override structured numerical or mechanical data.",
-    "Only LongGuns, Pistols, and Melee receive population evaluation in V1."
+    "Only LongGuns, Pistols, and Melee receive population evaluation in V1.",
+    "Duplicate localized names are canonicalized before population statistics."
   ]
 }

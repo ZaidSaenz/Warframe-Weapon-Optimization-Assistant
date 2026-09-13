@@ -22,7 +22,7 @@ LOCALIZATION_PATH = Path("data/raw/dict.en.json")
 OUTPUT_PATH = Path("data/normalized/weapons.json")
 REPORT_PATH = Path("data/reports/weapon_database_report.json")
 
-SCHEMA_VERSION = "2.2.0"
+SCHEMA_VERSION = "2.4.1"
 
 
 # ---------------------------------------------------------------------------
@@ -151,14 +151,40 @@ def normalize_root_damage(value: Any) -> tuple[dict[str, int | float], list[int]
     return damage, unknown_indexes
 
 
-def damage_distribution(damage: dict[str, int | float]) -> dict[str, float]:
-    """Return each root damage component as a fraction of listed root damage."""
+def fraction_to_percent(value: float | None) -> int | float | None:
+    """
+    Convert a normalized probability/fraction into a human-readable percent.
+
+    Example:
+        0.24 -> 24
+        0.055 -> 5.5
+    """
+    if value is None:
+        return None
+    return clean_number(value * 100.0)
+
+
+def damage_distribution_percent(
+    damage: dict[str, int | float],
+) -> dict[str, float]:
+    """
+    Return root damage composition as percentages from 0 to 100.
+
+    Example:
+        {"impact": 29, "heat": 53}
+        ->
+        {"impact": 35.3659, "heat": 64.6341}
+    """
     total = sum(float(value) for value in damage.values())
+
     if total <= 0:
         return {}
 
     return {
-        key: round(float(value) / total, 6)
+        key: round(
+            100.0 * float(value) / total,
+            4,
+        )
         for key, value in damage.items()
     }
 
@@ -201,8 +227,13 @@ def classify_riven(value: float | None) -> dict[str, Any] | None:
 # Percentiles
 # ---------------------------------------------------------------------------
 
-def relative_alert(percentile: float) -> str | None:
-    """Describe extremeness only. These labels never mean good/bad."""
+def relative_band(percentile: float) -> str:
+    """
+    Describe relative position inside a population.
+
+    These labels never mean good/bad.
+    They only describe how unusual the numerical value is.
+    """
     if percentile <= 5:
         return "exceptionally_low"
     if percentile <= 15:
@@ -211,7 +242,9 @@ def relative_alert(percentile: float) -> str | None:
         return "exceptionally_high"
     if percentile >= 85:
         return "very_high"
-    return None
+    return "middle_range"
+
+
 
 
 def percentile_midrank(sorted_values: list[float], value: float) -> float:
@@ -270,6 +303,155 @@ def is_selectable_weapon(weapon_id: str, weapon: Any) -> tuple[bool, str | None]
     return True, None
 
 
+
+# ---------------------------------------------------------------------------
+# Canonical identity resolution
+# ---------------------------------------------------------------------------
+
+def normalize_display_name(value: str) -> str:
+    return " ".join(value.casefold().strip().split())
+
+
+def duplicate_name_penalty(
+    weapon_id: str,
+) -> tuple[int, list[str]]:
+    """
+    Conservative penalty used ONLY when multiple selectable records resolve
+    to the exact same localized display name.
+
+    This is intentionally not a global path filter.
+    Legitimate player-facing weapons may live under /Types/ or use unusual slots.
+    """
+
+    lowered = weapon_id.casefold()
+
+    penalty = 0
+    reasons: list[str] = []
+
+    if "doppelganger" in lowered:
+        penalty += 100
+        reasons.append("doppelganger_path")
+
+    if "/enemies/" in lowered:
+        penalty += 50
+        reasons.append("enemy_path")
+
+    if "boss" in lowered:
+        penalty += 25
+        reasons.append("boss_path")
+
+    return penalty, reasons
+
+
+def resolve_duplicate_names(
+    selected: dict[str, dict[str, Any]],
+    dictionary: dict[str, str],
+) -> tuple[
+    dict[str, dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """
+    Ensure one canonical selectable record per localized weapon name.
+
+    Rules:
+    - Unique names are untouched.
+    - Duplicate names are evaluated only within their collision group.
+    - Internal-looking records receive a conservative penalty.
+    - A single lowest-penalty candidate is kept.
+    - Ties are NOT guessed: the build stops for manual review.
+    """
+
+    groups: dict[str, list[str]] = defaultdict(list)
+
+    for weapon_id, weapon in selected.items():
+        name_key = weapon.get("name")
+        display_name = localized(name_key, dictionary)
+
+        if not isinstance(display_name, str):
+            continue
+
+        groups[
+            normalize_display_name(display_name)
+        ].append(weapon_id)
+
+    resolved = dict(selected)
+    report: list[dict[str, Any]] = []
+
+    for normalized_name, weapon_ids in sorted(groups.items()):
+
+        if len(weapon_ids) <= 1:
+            continue
+
+        candidates = []
+
+        for weapon_id in weapon_ids:
+            penalty, reasons = duplicate_name_penalty(
+                weapon_id
+            )
+
+            candidates.append(
+                {
+                    "weapon_id": weapon_id,
+                    "penalty": penalty,
+                    "reasons": reasons,
+                }
+            )
+
+        minimum_penalty = min(
+            item["penalty"]
+            for item in candidates
+        )
+
+        winners = [
+            item
+            for item in candidates
+            if item["penalty"] == minimum_penalty
+        ]
+
+        if len(winners) != 1:
+            detail = json.dumps(
+                candidates,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+            raise ValueError(
+                "Ambiguous duplicate localized weapon name "
+                f"{normalized_name!r}. Manual review required:\n"
+                f"{detail}"
+            )
+
+        kept = winners[0]["weapon_id"]
+
+        removed = [
+            item["weapon_id"]
+            for item in candidates
+            if item["weapon_id"] != kept
+        ]
+
+        for weapon_id in removed:
+            resolved.pop(
+                weapon_id,
+                None,
+            )
+
+        display_name = localized(
+            selected[kept].get("name"),
+            dictionary,
+        )
+
+        report.append(
+            {
+                "name": display_name,
+                "kept": kept,
+                "removed": removed,
+                "candidates": candidates,
+            }
+        )
+
+    return resolved, report
+
+
 # ---------------------------------------------------------------------------
 # Behaviour-record normalization
 # ---------------------------------------------------------------------------
@@ -297,12 +479,19 @@ def extract_damage_components(node: Any, path: str = "") -> list[dict[str, Any]]
         if damage:
             component: dict[str, Any] = {
                 "path": path or "root",
-                "damage": damage,
-                "total_damage": clean_number(sum(float(v) for v in damage.values())),
+                "damage": {
+                    "total": clean_number(
+                        sum(
+                            float(v)
+                            for v in damage.values()
+                        )
+                    ),
+                    "by_type": damage,
+                },
             }
             proc = as_number(node.get("procChance"))
             if proc is not None:
-                component["status_chance"] = clean_number(proc)
+                component["proc_chance_raw"] = clean_number(proc)
             components.append(component)
 
         for key, value in node.items():
@@ -332,25 +521,28 @@ def normalize_trigger_value(value: Any, dictionary: dict[str, str]) -> str | Non
 
 def classify_behaviour_role(
     *,
-    index: int,
     root_trigger: str | None,
     behaviour_state: str | None,
+    primary_assigned: bool,
 ) -> str:
     """
-    Conservative structural classification only.
+    Conservative structural classification.
 
-    - First record matching the root trigger -> primary
+    - First record compatible with the root trigger -> primary
     - Explicitly different trigger/state -> alternate_mode
-    - Everything else -> unclassified
+    - Remaining records -> unclassified
 
-    This intentionally avoids calling later same-trigger records Incarnon,
-    charged, radial, etc. unless the public export says so explicitly.
+    This avoids assuming Incarnon, radial, charged, etc. unless
+    the source explicitly identifies that behaviour.
     """
-    if index == 0 and (
+
+    compatible_with_root = (
         behaviour_state is None
         or root_trigger is None
         or behaviour_state == root_trigger
-    ):
+    )
+
+    if not primary_assigned and compatible_with_root:
         return "primary"
 
     if (
@@ -363,46 +555,80 @@ def classify_behaviour_role(
     return "unclassified"
 
 
+
+
 def normalize_behaviour_record(
     behavior: dict[str, Any],
     index: int,
     dictionary: dict[str, str],
     root_trigger: str | None,
+    primary_assigned: bool,
 ) -> dict[str, Any]:
+
     record: dict[str, Any] = {
         "index": index,
     }
 
     state_name = behavior.get("stateName")
     behaviour_state: str | None = None
+
     if isinstance(state_name, str):
         record["state_key"] = state_name
-        record["state"] = localized(state_name, dictionary)
-        behaviour_state = normalize_trigger_value(state_name, dictionary)
+        record["state"] = localized(
+            state_name,
+            dictionary,
+        )
+
+        behaviour_state = normalize_trigger_value(
+            state_name,
+            dictionary,
+        )
 
     record["role"] = classify_behaviour_role(
-        index=index,
         root_trigger=root_trigger,
         behaviour_state=behaviour_state,
+        primary_assigned=primary_assigned,
     )
 
-    fire_iterations = as_number(behavior.get("fireIterations"))
+    fire_iterations = as_number(
+        behavior.get("fireIterations")
+    )
+
     if fire_iterations is not None:
-        record["fire_iterations"] = clean_number(fire_iterations)
+        record["fire_iterations"] = clean_number(
+            fire_iterations
+        )
 
     burst = behavior.get("burst")
+
     if isinstance(burst, dict):
         burst_out: dict[str, Any] = {}
-        count = as_number(burst.get("count"))
-        delay = as_number(burst.get("delay"))
+
+        count = as_number(
+            burst.get("count")
+        )
+
+        delay = as_number(
+            burst.get("delay")
+        )
+
         if count is not None:
-            burst_out["count"] = clean_number(count)
+            burst_out["count"] = clean_number(
+                count
+            )
+
         if delay is not None:
-            burst_out["delay_seconds"] = clean_number(delay)
+            burst_out["delay_seconds"] = clean_number(
+                delay
+            )
+
         if burst_out:
             record["burst"] = burst_out
 
-    components = extract_damage_components(behavior)
+    components = extract_damage_components(
+        behavior
+    )
+
     if components:
         record["components"] = components
 
@@ -413,34 +639,50 @@ def normalize_behaviour_records(
     weapon: dict[str, Any],
     dictionary: dict[str, str],
 ) -> tuple[list[dict[str, Any]], int]:
+
     behaviours = weapon.get("behaviours")
+
     if not isinstance(behaviours, list):
         return [], 0
 
-    root_trigger = normalize_trigger_value(weapon.get("trigger"), dictionary)
+    root_trigger = normalize_trigger_value(
+        weapon.get("trigger"),
+        dictionary,
+    )
 
     records: list[dict[str, Any]] = []
     seen: set[str] = set()
+
     deduped = 0
+    primary_assigned = False
 
     for index, behavior in enumerate(behaviours):
+
         if not isinstance(behavior, dict):
             continue
 
         record = normalize_behaviour_record(
-            behavior,
-            index,
-            dictionary,
-            root_trigger,
+            behavior=behavior,
+            index=index,
+            dictionary=dictionary,
+            root_trigger=root_trigger,
+            primary_assigned=primary_assigned,
         )
 
-        # Exact structural dedupe only. No semantic dedupe. Role and index are
-        # excluded so duplicate source records can still collapse safely.
+        # Exact structural dedupe only.
+        #
+        # Role and index are excluded so duplicated source
+        # structures can collapse without pretending that
+        # semantically different records are equivalent.
         signature_source = {
-            k: v
-            for k, v in record.items()
-            if k not in {"index", "role"}
+            key: value
+            for key, value in record.items()
+            if key not in {
+                "index",
+                "role",
+            }
         }
+
         signature = json.dumps(
             signature_source,
             ensure_ascii=False,
@@ -453,6 +695,10 @@ def normalize_behaviour_records(
             continue
 
         seen.add(signature)
+
+        if record.get("role") == "primary":
+            primary_assigned = True
+
         records.append(record)
 
     return records, deduped
@@ -467,94 +713,317 @@ def canonical_weapon(
     weapon: dict[str, Any],
     dictionary: dict[str, str],
 ) -> tuple[dict[str, Any], int]:
-    product_category = weapon.get("productCategory")
-    category = CATEGORY_MAP.get(product_category, str(product_category).lower())
+
+    product_category = weapon.get(
+        "productCategory"
+    )
+
+    category = CATEGORY_MAP.get(
+        product_category,
+        str(product_category).lower(),
+    )
 
     name_key = weapon.get("name")
-    description_key = weapon.get("description")
-    behaviour_records, deduped_records = normalize_behaviour_records(weapon, dictionary)
-    root_damage_types, unknown_root_damage_indexes = normalize_root_damage(
+    description_key = weapon.get(
+        "description"
+    )
+
+    behaviour_records, deduped_records = (
+        normalize_behaviour_records(
+            weapon,
+            dictionary,
+        )
+    )
+
+    (
+        root_damage_types,
+        unknown_root_damage_indexes,
+    ) = normalize_root_damage(
         weapon.get("damagePerShot")
     )
 
     compatibility_tags = [
         str(tag)
-        for tag in weapon.get("compatibilityTags", [])
+        for tag in weapon.get(
+            "compatibilityTags",
+            [],
+        )
         if isinstance(tag, str)
     ]
+
     mechanical_tags = sorted(
-        tag for tag in compatibility_tags if tag in MECHANICAL_TAGS
+        tag
+        for tag in compatibility_tags
+        if tag in MECHANICAL_TAGS
+    )
+
+    total_damage = as_number(
+        weapon.get("totalDamage")
+    )
+
+    critical_chance = as_number(
+        weapon.get("criticalChance")
+    )
+
+    critical_multiplier = as_number(
+        weapon.get("criticalMultiplier")
+    )
+
+    status_chance = as_number(
+        weapon.get("procChance")
     )
 
     out: dict[str, Any] = {
+
         "weapon_id": weapon_id,
+
         "identity": {
-            "name": localized(name_key, dictionary),
+            "name": localized(
+                name_key,
+                dictionary,
+            ),
             "name_key": name_key,
         },
+
         "qualitative_context": {
-            "official_description": localized(description_key, dictionary),
+            "official_description": localized(
+                description_key,
+                dictionary,
+            ),
             "usage": "weapon_context",
         },
+
         "classification": {
             "category": category,
             "product_category": product_category,
             "slot": weapon.get("slot"),
-            "variant_type": weapon.get("variantType"),
+            "variant_type": weapon.get(
+                "variantType"
+            ),
         },
+
         "damage": {
-            "root_total": clean_number(as_number(weapon.get("totalDamage"))),
-            "types": root_damage_types,
-            "distribution": damage_distribution(root_damage_types),
+            "base_damage": {
+                "total": clean_number(
+                    total_damage
+                ),
+                "by_type": root_damage_types,
+                "distribution_percent":
+                    damage_distribution_percent(
+                        root_damage_types
+                    ),
+            },
         },
+
         "critical": {
-            "chance": clean_number(as_number(weapon.get("criticalChance"))),
-            "multiplier": clean_number(as_number(weapon.get("criticalMultiplier"))),
+            "chance": {
+                "percent": fraction_to_percent(
+                    critical_chance
+                ),
+            },
+            "multiplier": {
+                "times": clean_number(
+                    critical_multiplier
+                ),
+            },
         },
+
         "status": {
-            "chance": clean_number(as_number(weapon.get("procChance"))),
+            "chance": {
+                "percent": fraction_to_percent(
+                    status_chance
+                ),
+            },
         },
+
         "mechanics": {
             "trigger": weapon.get("trigger"),
-            "multishot": clean_number(as_number(weapon.get("multishot"))),
-            "mechanical_tags": mechanical_tags,
+            "multishot": clean_number(
+                as_number(
+                    weapon.get("multishot")
+                )
+            ),
+            "mechanical_tags":
+                mechanical_tags,
         },
-        "riven": classify_riven(as_number(weapon.get("omegaAttenuation"))),
-        "behaviour_records": behaviour_records,
+
+        "riven": classify_riven(
+            as_number(
+                weapon.get(
+                    "omegaAttenuation"
+                )
+            )
+        ),
+
+        "behaviour_records":
+            behaviour_records,
+
         "source": {
-            "description_key": description_key,
-            "compatibility_tags": compatibility_tags,
+            "description_key":
+                description_key,
+            "compatibility_tags":
+                compatibility_tags,
         },
     }
 
     if unknown_root_damage_indexes:
-        out["source"]["unknown_root_damage_indexes"] = unknown_root_damage_indexes
+        out["source"][
+            "unknown_root_damage_indexes"
+        ] = unknown_root_damage_indexes
 
-    if category in {"primary", "secondary", "archgun", "companion", "amp", "special"}:
+    # --------------------------------------------------------
+    # Ranged / firearm-like handling
+    # --------------------------------------------------------
+
+    if category in {
+        "primary",
+        "secondary",
+        "archgun",
+        "companion",
+        "amp",
+        "special",
+    }:
+
         out["handling"] = {
-            "fire_rate": clean_number(as_number(weapon.get("fireRate"))),
-            "magazine_size": clean_number(as_number(weapon.get("magazineSize"))),
-            "reload_duration_seconds": clean_number(as_number(weapon.get("reloadTime"))),
-            "accuracy_raw": clean_number(as_number(weapon.get("accuracy"))),
+
+            "fire_rate": {
+                "per_second": clean_number(
+                    as_number(
+                        weapon.get("fireRate")
+                    )
+                ),
+            },
+
+            "magazine": {
+                "rounds": clean_number(
+                    as_number(
+                        weapon.get(
+                            "magazineSize"
+                        )
+                    )
+                ),
+            },
+
+            "reload": {
+                "seconds": clean_number(
+                    as_number(
+                        weapon.get("reloadTime")
+                    )
+                ),
+            },
+
+            # Meaning of this public-export number is not
+            # sufficiently clear for semantic interpretation.
+            "raw_accuracy_value":
+                clean_number(
+                    as_number(
+                        weapon.get("accuracy")
+                    )
+                ),
+
             "noise": weapon.get("noise"),
         }
 
-        total_damage = as_number(weapon.get("totalDamage"))
-        multishot = as_number(weapon.get("multishot"))
-        if total_damage is not None and multishot is not None:
-            # Transparent arithmetic, not a magic score.
-            out["damage"]["base_volley_damage"] = clean_number(
-                total_damage * multishot
-            )
+        multishot = as_number(
+            weapon.get("multishot")
+        )
 
-    if category in {"melee", "archmelee"}:
+        if (
+            total_damage is not None
+            and multishot is not None
+        ):
+
+            # Transparent arithmetic only:
+            #
+            # totalDamage * multishot
+            #
+            # This intentionally does NOT claim to represent
+            # burst damage, DPS, secondary explosions, etc.
+            out["damage"][
+                "base_multishot_damage"
+            ] = {
+                "damage": clean_number(
+                    total_damage
+                    * multishot
+                )
+            }
+
+    # --------------------------------------------------------
+    # Melee handling
+    # --------------------------------------------------------
+
+    if category in {
+        "melee",
+        "archmelee",
+    }:
+
         out["handling"] = {
-            "attack_speed": clean_number(as_number(weapon.get("fireRate"))),
-            "range_meters": clean_number(as_number(weapon.get("range"))),
-            "follow_through": clean_number(as_number(weapon.get("followThrough"))),
-            "combo_duration_seconds": clean_number(as_number(weapon.get("comboDuration"))),
-            "heavy_attack_damage": clean_number(as_number(weapon.get("heavyAttackDamage"))),
-            "heavy_windup_seconds": clean_number(as_number(weapon.get("windUp"))),
+
+            "attack_speed": {
+                "attacks_per_second":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "fireRate"
+                            )
+                        )
+                    ),
+            },
+
+            "range": {
+                "meters":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "range"
+                            )
+                        )
+                    ),
+            },
+
+            "follow_through": {
+                "coefficient":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "followThrough"
+                            )
+                        )
+                    ),
+            },
+
+            "combo_duration": {
+                "seconds":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "comboDuration"
+                            )
+                        )
+                    ),
+            },
+
+            "heavy_attack": {
+                "damage":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "heavyAttackDamage"
+                            )
+                        )
+                    ),
+            },
+
+            "heavy_windup": {
+                "seconds":
+                    clean_number(
+                        as_number(
+                            weapon.get(
+                                "windUp"
+                            )
+                        )
+                    ),
+            },
         }
 
     return out, deduped_records
@@ -571,139 +1040,432 @@ class MetricSpec:
     derived: str | None = None
 
 
-def metric_specs_for_population(population: str) -> dict[str, MetricSpec]:
-    if population in {"LongGuns", "Pistols"}:
+def metric_specs_for_population(
+    population: str,
+) -> dict[str, MetricSpec]:
+
+    if population in {
+        "LongGuns",
+        "Pistols",
+    }:
+
         return {
-            "critical_chance": MetricSpec(("critical", "chance"), "criticalChance"),
-            "critical_multiplier": MetricSpec(("critical", "multiplier"), "criticalMultiplier"),
-            "status_chance": MetricSpec(("status", "chance"), "procChance"),
-            "fire_rate": MetricSpec(("handling", "fire_rate"), "fireRate"),
-            "magazine_size": MetricSpec(("handling", "magazine_size"), "magazineSize"),
-            "reload_duration_seconds": MetricSpec(
-                ("handling", "reload_duration_seconds"), "reloadTime"
-            ),
-            "base_volley_damage": MetricSpec(
-                ("damage", "base_volley_damage"),
-                derived="base_volley_damage",
-            ),
+
+            "critical_chance":
+                MetricSpec(
+                    ("critical", "chance"),
+                    "criticalChance",
+                ),
+
+            "critical_multiplier":
+                MetricSpec(
+                    (
+                        "critical",
+                        "multiplier",
+                    ),
+                    "criticalMultiplier",
+                ),
+
+            "status_chance":
+                MetricSpec(
+                    ("status", "chance"),
+                    "procChance",
+                ),
+
+            "fire_rate":
+                MetricSpec(
+                    (
+                        "handling",
+                        "fire_rate",
+                    ),
+                    "fireRate",
+                ),
+
+            "magazine_size":
+                MetricSpec(
+                    (
+                        "handling",
+                        "magazine",
+                    ),
+                    "magazineSize",
+                ),
+
+            "reload_duration_seconds":
+                MetricSpec(
+                    (
+                        "handling",
+                        "reload",
+                    ),
+                    "reloadTime",
+                ),
+
+            "base_multishot_damage":
+                MetricSpec(
+                    (
+                        "damage",
+                        "base_multishot_damage",
+                    ),
+                    derived=(
+                        "base_multishot_damage"
+                    ),
+                ),
         }
 
     if population == "Melee":
+
         return {
-            "total_damage": MetricSpec(("damage", "root_total"), "totalDamage"),
-            "critical_chance": MetricSpec(("critical", "chance"), "criticalChance"),
-            "critical_multiplier": MetricSpec(("critical", "multiplier"), "criticalMultiplier"),
-            "status_chance": MetricSpec(("status", "chance"), "procChance"),
-            "attack_speed": MetricSpec(("handling", "attack_speed"), "fireRate"),
-            "range_meters": MetricSpec(("handling", "range_meters"), "range"),
-            "follow_through": MetricSpec(("handling", "follow_through"), "followThrough"),
-            "combo_duration_seconds": MetricSpec(
-                ("handling", "combo_duration_seconds"), "comboDuration"
-            ),
-            "heavy_attack_damage": MetricSpec(
-                ("handling", "heavy_attack_damage"), "heavyAttackDamage"
-            ),
-            "heavy_windup_seconds": MetricSpec(
-                ("handling", "heavy_windup_seconds"), "windUp"
-            ),
+
+            "total_damage":
+                MetricSpec(
+                    (
+                        "damage",
+                        "base_damage",
+                    ),
+                    "totalDamage",
+                ),
+
+            "critical_chance":
+                MetricSpec(
+                    ("critical", "chance"),
+                    "criticalChance",
+                ),
+
+            "critical_multiplier":
+                MetricSpec(
+                    (
+                        "critical",
+                        "multiplier",
+                    ),
+                    "criticalMultiplier",
+                ),
+
+            "status_chance":
+                MetricSpec(
+                    ("status", "chance"),
+                    "procChance",
+                ),
+
+            "attack_speed":
+                MetricSpec(
+                    (
+                        "handling",
+                        "attack_speed",
+                    ),
+                    "fireRate",
+                ),
+
+            "range_meters":
+                MetricSpec(
+                    (
+                        "handling",
+                        "range",
+                    ),
+                    "range",
+                ),
+
+            "follow_through":
+                MetricSpec(
+                    (
+                        "handling",
+                        "follow_through",
+                    ),
+                    "followThrough",
+                ),
+
+            "combo_duration_seconds":
+                MetricSpec(
+                    (
+                        "handling",
+                        "combo_duration",
+                    ),
+                    "comboDuration",
+                ),
+
+            "heavy_attack_damage":
+                MetricSpec(
+                    (
+                        "handling",
+                        "heavy_attack",
+                    ),
+                    "heavyAttackDamage",
+                ),
+
+            "heavy_windup_seconds":
+                MetricSpec(
+                    (
+                        "handling",
+                        "heavy_windup",
+                    ),
+                    "windUp",
+                ),
         }
 
     return {}
 
 
-def metric_value(raw_weapon: dict[str, Any], spec: MetricSpec) -> float | None:
-    if spec.source_field is not None:
-        return as_number(raw_weapon.get(spec.source_field))
+def metric_value(
+    raw_weapon: dict[str, Any],
+    spec: MetricSpec,
+) -> float | None:
 
-    if spec.derived == "base_volley_damage":
-        total = as_number(raw_weapon.get("totalDamage"))
-        multishot = as_number(raw_weapon.get("multishot"))
-        if total is None or multishot is None:
+    if spec.source_field is not None:
+        return as_number(
+            raw_weapon.get(
+                spec.source_field
+            )
+        )
+
+    if (
+        spec.derived
+        == "base_multishot_damage"
+    ):
+
+        total = as_number(
+            raw_weapon.get("totalDamage")
+        )
+
+        multishot = as_number(
+            raw_weapon.get("multishot")
+        )
+
+        if (
+            total is None
+            or multishot is None
+        ):
             return None
+
         return total * multishot
 
     return None
 
 
-def set_nested_stat(
+def add_nested_population_metadata(
     weapon: dict[str, Any],
     path: tuple[str, ...],
-    stat_object: dict[str, Any],
+    *,
+    percentile: float,
+    band: str,
 ) -> None:
+    """
+    Add population metadata without replacing the canonical
+    stat object.
+
+    This keeps field types stable across evaluated and
+    non-evaluated weapon classes.
+    """
+
     cursor = weapon
+
     for key in path[:-1]:
-        cursor = cursor.setdefault(key, {})
-    cursor[path[-1]] = stat_object
+        cursor = cursor.setdefault(
+            key,
+            {},
+        )
+
+    stat = cursor.get(
+        path[-1]
+    )
+
+    if not isinstance(stat, dict):
+        raise TypeError(
+            "Expected canonical stat object at "
+            + ".".join(path)
+        )
+
+    stat[
+        "population_percentile"
+    ] = percentile
+
+    stat[
+        "relative_band"
+    ] = band
 
 
 def add_population_statistics(
-    raw_selected: dict[str, dict[str, Any]],
-    normalized: dict[str, dict[str, Any]],
+    raw_selected: dict[
+        str,
+        dict[str, Any],
+    ],
+    normalized: dict[
+        str,
+        dict[str, Any],
+    ],
 ) -> dict[str, Any]:
-    populations: dict[str, list[str]] = defaultdict(list)
 
-    for weapon_id, raw in raw_selected.items():
-        population = raw.get("productCategory")
-        if population in EVALUATED_POPULATIONS:
-            populations[population].append(weapon_id)
+    populations: dict[
+        str,
+        list[str],
+    ] = defaultdict(list)
 
-    population_report: dict[str, Any] = {}
+    for weapon_id, raw in (
+        raw_selected.items()
+    ):
 
-    for population, weapon_ids in sorted(populations.items()):
-        specs = metric_specs_for_population(population)
+        population = raw.get(
+            "productCategory"
+        )
 
-        distributions: dict[str, list[float]] = {}
-        for metric_name, spec in specs.items():
+        if (
+            population
+            in EVALUATED_POPULATIONS
+        ):
+            populations[
+                population
+            ].append(
+                weapon_id
+            )
+
+    population_report: dict[
+        str,
+        Any,
+    ] = {}
+
+    for (
+        population,
+        weapon_ids,
+    ) in sorted(
+        populations.items()
+    ):
+
+        specs = (
+            metric_specs_for_population(
+                population
+            )
+        )
+
+        distributions: dict[
+            str,
+            list[float],
+        ] = {}
+
+        for (
+            metric_name,
+            spec,
+        ) in specs.items():
+
             values = [
                 value
-                for weapon_id in weapon_ids
-                if (value := metric_value(raw_selected[weapon_id], spec)) is not None
+                for weapon_id
+                in weapon_ids
+                if (
+                    value := metric_value(
+                        raw_selected[
+                            weapon_id
+                        ],
+                        spec,
+                    )
+                )
+                is not None
             ]
-            distributions[metric_name] = sorted(values)
 
-        population_report[population] = {
-            "population_size": len(weapon_ids),
+            distributions[
+                metric_name
+            ] = sorted(
+                values
+            )
+
+        population_report[
+            population
+        ] = {
+
+            "population_size":
+                len(weapon_ids),
+
             "metric_sample_sizes": {
-                metric: len(values)
-                for metric, values in distributions.items()
+                metric:
+                    len(values)
+                for (
+                    metric,
+                    values,
+                )
+                in distributions.items()
             },
         }
 
         for weapon_id in weapon_ids:
-            raw = raw_selected[weapon_id]
-            out = normalized[weapon_id]
+
+            raw = raw_selected[
+                weapon_id
+            ]
+
+            out = normalized[
+                weapon_id
+            ]
 
             out["population"] = {
                 "group": population,
-                "size": len(weapon_ids),
+                "size": len(
+                    weapon_ids
+                ),
             }
 
-            for metric_name, spec in specs.items():
-                value = metric_value(raw, spec)
-                values = distributions[metric_name]
+            for (
+                metric_name,
+                spec,
+            ) in specs.items():
 
-                if value is None or not values:
+                value = metric_value(
+                    raw,
+                    spec,
+                )
+
+                values = distributions[
+                    metric_name
+                ]
+
+                if (
+                    value is None
+                    or not values
+                ):
                     continue
 
-                percentile = round(percentile_midrank(values, value), 2)
-                alert = relative_alert(percentile)
+                percentile = round(
+                    percentile_midrank(
+                        values,
+                        value,
+                    ),
+                    2,
+                )
 
-                stat_object: dict[str, Any] = {
-                    "value": clean_number(value),
-                    "percentile": percentile,
-                }
-                if alert is not None:
-                    stat_object["extreme"] = alert
+                band = relative_band(
+                    percentile
+                )
 
-                set_nested_stat(out, spec.output_path, stat_object)
+                add_nested_population_metadata(
+                    out,
+                    spec.output_path,
+                    percentile=percentile,
+                    band=band,
+                )
 
-    # Preserve non-V1 weapon classes without forcing bad statistical comparisons.
-    for weapon_id, raw in raw_selected.items():
-        if raw.get("productCategory") not in EVALUATED_POPULATIONS:
-            normalized[weapon_id]["population"] = {
-                "group": raw.get("productCategory"),
-                "evaluated": False,
-                "reason": "population_not_enabled_in_v1",
+    # Preserve other classes without forcing invalid
+    # cross-category statistical comparisons.
+    for (
+        weapon_id,
+        raw,
+    ) in raw_selected.items():
+
+        if (
+            raw.get(
+                "productCategory"
+            )
+            not in EVALUATED_POPULATIONS
+        ):
+
+            normalized[
+                weapon_id
+            ]["population"] = {
+
+                "group":
+                    raw.get(
+                        "productCategory"
+                    ),
+
+                "evaluated":
+                    False,
+
+                "reason":
+                    "population_not_enabled_in_v1",
             }
 
     return population_report
@@ -736,6 +1498,25 @@ def build_database(
             exclusions[reason or "unknown"] += 1
             continue
         selected[weapon_id] = weapon
+
+    selectable_before_name_canonicalization = len(selected)
+
+    selected, duplicate_name_collisions = (
+        resolve_duplicate_names(
+            selected,
+            dictionary,
+        )
+    )
+
+    duplicate_name_records_removed = (
+        selectable_before_name_canonicalization
+        - len(selected)
+    )
+
+    if duplicate_name_records_removed:
+        exclusions[
+            "duplicate_localized_name_noncanonical"
+        ] += duplicate_name_records_removed
 
     normalized: dict[str, dict[str, Any]] = {}
     category_counts = Counter()
@@ -773,25 +1554,38 @@ def build_database(
     report = {
         "schema_version": SCHEMA_VERSION,
         "raw_entries": len(raw),
+        "selectable_weapons_before_name_canonicalization": (
+            selectable_before_name_canonicalization
+        ),
         "selected_weapons": len(selected),
         "excluded_entries": len(raw) - len(selected),
         "exclusion_reasons": dict(exclusions.most_common()),
         "product_categories": dict(category_counts.most_common()),
         "evaluated_populations": population_report,
         "exact_duplicate_behaviour_records_removed": deduped_records,
+        "duplicate_name_records_removed": duplicate_name_records_removed,
+        "duplicate_name_collisions": duplicate_name_collisions,
         "missing_localized_names": missing_localized_names,
         "missing_localized_descriptions": missing_localized_descriptions,
         "notes": [
-            "Percentiles describe relative position, not weapon quality.",
-            "Extreme labels describe unusually high/low values, not good/bad values.",
+            "Population percentiles describe relative position, not weapon quality.",
+            "Relative bands describe numerical rarity only, never good/bad quality.",
+            "Probability-like root statistics are exposed as percentages from 0 to 100.",
+            "Population percentile fields are explicitly named population_percentile.",
+            "Canonical stat objects keep the same type whether or not population statistics are available.",
             "Riven disposition uses a fixed rule instead of population percentiles.",
-            "Accuracy is preserved as raw context but is not statistically evaluated.",
+            "Accuracy is preserved as raw_accuracy_value and is not semantically interpreted.",
+            "Nested behaviour procChance values are preserved as proc_chance_raw until their exact semantics are verified.",
             "Behaviour records preserve structural damage components without semantic merging.",
             "Behaviour roles are conservative: primary, alternate_mode, or unclassified.",
-            "Root damage composition comes from damagePerShot and is exposed directly.",
+            "The first behaviour compatible with the root trigger becomes primary.",
+            "Root damage amounts are exposed under base_damage.by_type; only distribution_percent represents percentages.",
+            "Damage distribution is exposed as percentages from 0 to 100.",
+            "base_multishot_damage means totalDamage multiplied by multishot only; it is not DPS or full trigger-event damage.",
             "Official descriptions are exposed as qualitative weapon context for the language model.",
             "Descriptions never override structured numerical or mechanical data.",
             "Only LongGuns, Pistols, and Melee receive population evaluation in V1.",
+            "Duplicate localized names are canonicalized before population statistics.",
         ],
     }
 
