@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.4.1",
+  "schema_version": "2.5.0",
   "raw_entries": 843,
   "selectable_weapons_before_name_canonicalization": 656,
   "selected_weapons": 654,
@@ -110,7 +110,9 @@
   "missing_localized_descriptions": 0,
   "notes": [
     "Population percentiles describe relative position, not weapon quality.",
-    "Relative bands describe numerical rarity only, never good/bad quality.",
+    "Relative bands describe numerical position only, never good/bad quality.",
+    "Guide tags and relative_context are deterministic translations of percentile direction, not build recommendations.",
+    "Metric-specific direction is explicit: high fire rate means fast, high reload duration means slow, high magazine size means large.",
     "Probability-like root statistics are exposed as percentages from 0 to 100.",
     "Population percentile fields are explicitly named population_percentile.",
     "Canonical stat objects keep the same type whether or not population statistics are available.",

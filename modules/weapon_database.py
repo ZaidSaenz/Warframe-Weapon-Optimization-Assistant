@@ -1,7 +1,3 @@
-# Regenerate the normalized weapon database after updating
-# data/raw/ExportWeapons.json or data/raw/dict.en.json:
-# python -m modules.weapon_database normalize
-
 from __future__ import annotations
 
 import argparse
@@ -22,7 +18,7 @@ LOCALIZATION_PATH = Path("data/raw/dict.en.json")
 OUTPUT_PATH = Path("data/normalized/weapons.json")
 REPORT_PATH = Path("data/reports/weapon_database_report.json")
 
-SCHEMA_VERSION = "2.4.1"
+SCHEMA_VERSION = "2.5.0"
 
 
 # ---------------------------------------------------------------------------
@@ -231,18 +227,26 @@ def relative_band(percentile: float) -> str:
     """
     Describe relative position inside a population.
 
-    These labels never mean good/bad.
-    They only describe how unusual the numerical value is.
+    These labels never mean good/bad. They only describe the numerical
+    position of a metric compared with weapons in the same population.
+
+    The bands are deliberately symmetric around the middle range so that a
+    small language model does not need to infer whether percentile 82 is
+    meaningfully above average.
     """
     if percentile <= 5:
         return "exceptionally_low"
     if percentile <= 15:
         return "very_low"
-    if percentile >= 95:
-        return "exceptionally_high"
-    if percentile >= 85:
+    if percentile <= 30:
+        return "low"
+    if percentile < 70:
+        return "middle_range"
+    if percentile < 85:
+        return "high"
+    if percentile < 95:
         return "very_high"
-    return "middle_range"
+    return "exceptionally_high"
 
 
 
@@ -1039,6 +1043,75 @@ class MetricSpec:
     source_field: str | None = None
     derived: str | None = None
 
+    # Deterministic semantic guidance for small language models.
+    # These descriptors do not rate weapon quality. They only translate the
+    # numerical direction of the metric into plain language.
+    context_name: str = "metric"
+    low_descriptor: str = "low"
+    high_descriptor: str = "high"
+
+
+POPULATION_CONTEXT_NAMES = {
+    "LongGuns": "primary weapons",
+    "Pistols": "secondary weapons",
+    "Melee": "melee weapons",
+}
+
+
+def relative_guidance(
+    spec: MetricSpec,
+    band: str,
+    population: str,
+) -> tuple[str, str]:
+    """
+    Convert a deterministic percentile band into two LLM-friendly fields:
+
+    - guide_tag: compact machine-readable semantic tag
+    - relative_context: short natural-language interpretation
+
+    Examples:
+        high critical chance
+        exceptionally fast fire rate
+        very slow reload
+
+    This function never decides whether a stat is good or bad for a build.
+    """
+    low_prefix = {
+        "exceptionally_low": "exceptionally ",
+        "very_low": "very ",
+        "low": "",
+    }
+    high_prefix = {
+        "high": "",
+        "very_high": "very ",
+        "exceptionally_high": "exceptionally ",
+    }
+
+    if band == "middle_range":
+        description = f"typical {spec.context_name}"
+    elif band in low_prefix:
+        description = (
+            f"{low_prefix[band]}{spec.low_descriptor} {spec.context_name}"
+        )
+    elif band in high_prefix:
+        description = (
+            f"{high_prefix[band]}{spec.high_descriptor} {spec.context_name}"
+        )
+    else:
+        raise ValueError(f"Unsupported relative band: {band!r}")
+
+    population_name = POPULATION_CONTEXT_NAMES.get(
+        population,
+        f"weapons in {population}",
+    )
+
+    guide_tag = "_".join(description.casefold().split())
+    relative_context = (
+        f"{description} compared with other {population_name}"
+    )
+
+    return guide_tag, relative_context
+
 
 def metric_specs_for_population(
     population: str,
@@ -1050,154 +1123,110 @@ def metric_specs_for_population(
     }:
 
         return {
-
-            "critical_chance":
-                MetricSpec(
-                    ("critical", "chance"),
-                    "criticalChance",
-                ),
-
-            "critical_multiplier":
-                MetricSpec(
-                    (
-                        "critical",
-                        "multiplier",
-                    ),
-                    "criticalMultiplier",
-                ),
-
-            "status_chance":
-                MetricSpec(
-                    ("status", "chance"),
-                    "procChance",
-                ),
-
-            "fire_rate":
-                MetricSpec(
-                    (
-                        "handling",
-                        "fire_rate",
-                    ),
-                    "fireRate",
-                ),
-
-            "magazine_size":
-                MetricSpec(
-                    (
-                        "handling",
-                        "magazine",
-                    ),
-                    "magazineSize",
-                ),
-
-            "reload_duration_seconds":
-                MetricSpec(
-                    (
-                        "handling",
-                        "reload",
-                    ),
-                    "reloadTime",
-                ),
-
-            "base_multishot_damage":
-                MetricSpec(
-                    (
-                        "damage",
-                        "base_multishot_damage",
-                    ),
-                    derived=(
-                        "base_multishot_damage"
-                    ),
-                ),
+            "critical_chance": MetricSpec(
+                ("critical", "chance"),
+                "criticalChance",
+                context_name="critical chance",
+            ),
+            "critical_multiplier": MetricSpec(
+                ("critical", "multiplier"),
+                "criticalMultiplier",
+                context_name="critical multiplier",
+            ),
+            "status_chance": MetricSpec(
+                ("status", "chance"),
+                "procChance",
+                context_name="status chance",
+            ),
+            "fire_rate": MetricSpec(
+                ("handling", "fire_rate"),
+                "fireRate",
+                context_name="fire rate",
+                low_descriptor="slow",
+                high_descriptor="fast",
+            ),
+            "magazine_size": MetricSpec(
+                ("handling", "magazine"),
+                "magazineSize",
+                context_name="magazine",
+                low_descriptor="small",
+                high_descriptor="large",
+            ),
+            "reload_duration_seconds": MetricSpec(
+                ("handling", "reload"),
+                "reloadTime",
+                context_name="reload",
+                low_descriptor="fast",
+                high_descriptor="slow",
+            ),
+            "base_multishot_damage": MetricSpec(
+                ("damage", "base_multishot_damage"),
+                derived="base_multishot_damage",
+                context_name="base multishot damage",
+            ),
         }
 
     if population == "Melee":
 
         return {
-
-            "total_damage":
-                MetricSpec(
-                    (
-                        "damage",
-                        "base_damage",
-                    ),
-                    "totalDamage",
-                ),
-
-            "critical_chance":
-                MetricSpec(
-                    ("critical", "chance"),
-                    "criticalChance",
-                ),
-
-            "critical_multiplier":
-                MetricSpec(
-                    (
-                        "critical",
-                        "multiplier",
-                    ),
-                    "criticalMultiplier",
-                ),
-
-            "status_chance":
-                MetricSpec(
-                    ("status", "chance"),
-                    "procChance",
-                ),
-
-            "attack_speed":
-                MetricSpec(
-                    (
-                        "handling",
-                        "attack_speed",
-                    ),
-                    "fireRate",
-                ),
-
-            "range_meters":
-                MetricSpec(
-                    (
-                        "handling",
-                        "range",
-                    ),
-                    "range",
-                ),
-
-            "follow_through":
-                MetricSpec(
-                    (
-                        "handling",
-                        "follow_through",
-                    ),
-                    "followThrough",
-                ),
-
-            "combo_duration_seconds":
-                MetricSpec(
-                    (
-                        "handling",
-                        "combo_duration",
-                    ),
-                    "comboDuration",
-                ),
-
-            "heavy_attack_damage":
-                MetricSpec(
-                    (
-                        "handling",
-                        "heavy_attack",
-                    ),
-                    "heavyAttackDamage",
-                ),
-
-            "heavy_windup_seconds":
-                MetricSpec(
-                    (
-                        "handling",
-                        "heavy_windup",
-                    ),
-                    "windUp",
-                ),
+            "total_damage": MetricSpec(
+                ("damage", "base_damage"),
+                "totalDamage",
+                context_name="base damage",
+            ),
+            "critical_chance": MetricSpec(
+                ("critical", "chance"),
+                "criticalChance",
+                context_name="critical chance",
+            ),
+            "critical_multiplier": MetricSpec(
+                ("critical", "multiplier"),
+                "criticalMultiplier",
+                context_name="critical multiplier",
+            ),
+            "status_chance": MetricSpec(
+                ("status", "chance"),
+                "procChance",
+                context_name="status chance",
+            ),
+            "attack_speed": MetricSpec(
+                ("handling", "attack_speed"),
+                "fireRate",
+                context_name="attack speed",
+                low_descriptor="slow",
+                high_descriptor="fast",
+            ),
+            "range_meters": MetricSpec(
+                ("handling", "range"),
+                "range",
+                context_name="melee range",
+                low_descriptor="short",
+                high_descriptor="long",
+            ),
+            "follow_through": MetricSpec(
+                ("handling", "follow_through"),
+                "followThrough",
+                context_name="follow-through",
+            ),
+            "combo_duration_seconds": MetricSpec(
+                ("handling", "combo_duration"),
+                "comboDuration",
+                context_name="combo duration",
+                low_descriptor="short",
+                high_descriptor="long",
+            ),
+            "heavy_attack_damage": MetricSpec(
+                ("handling", "heavy_attack"),
+                "heavyAttackDamage",
+                context_name="heavy attack damage",
+            ),
+            "heavy_windup_seconds": MetricSpec(
+                ("handling", "heavy_windup"),
+                "windUp",
+                context_name="heavy attack windup",
+                low_descriptor="short",
+                high_descriptor="long",
+            ),
         }
 
     return {}
@@ -1245,6 +1274,8 @@ def add_nested_population_metadata(
     *,
     percentile: float,
     band: str,
+    guide_tag: str,
+    relative_context: str,
 ) -> None:
     """
     Add population metadata without replacing the canonical
@@ -1279,6 +1310,14 @@ def add_nested_population_metadata(
     stat[
         "relative_band"
     ] = band
+
+    stat[
+        "guide_tag"
+    ] = guide_tag
+
+    stat[
+        "relative_context"
+    ] = relative_context
 
 
 def add_population_statistics(
@@ -1431,11 +1470,22 @@ def add_population_statistics(
                     percentile
                 )
 
+                (
+                    guide_tag,
+                    relative_context,
+                ) = relative_guidance(
+                    spec,
+                    band,
+                    population,
+                )
+
                 add_nested_population_metadata(
                     out,
                     spec.output_path,
                     percentile=percentile,
                     band=band,
+                    guide_tag=guide_tag,
+                    relative_context=relative_context,
                 )
 
     # Preserve other classes without forcing invalid
@@ -1569,7 +1619,9 @@ def build_database(
         "missing_localized_descriptions": missing_localized_descriptions,
         "notes": [
             "Population percentiles describe relative position, not weapon quality.",
-            "Relative bands describe numerical rarity only, never good/bad quality.",
+            "Relative bands describe numerical position only, never good/bad quality.",
+            "Guide tags and relative_context are deterministic translations of percentile direction, not build recommendations.",
+            "Metric-specific direction is explicit: high fire rate means fast, high reload duration means slow, high magazine size means large.",
             "Probability-like root statistics are exposed as percentages from 0 to 100.",
             "Population percentile fields are explicitly named population_percentile.",
             "Canonical stat objects keep the same type whether or not population statistics are available.",
