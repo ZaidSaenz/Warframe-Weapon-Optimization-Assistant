@@ -129,5 +129,22 @@
     "Descriptions never override structured numerical or mechanical data.",
     "Only LongGuns, Pistols, and Melee receive population evaluation in V1.",
     "Duplicate localized names are canonicalized before population statistics."
-  ]
+  ],
+  "generated_views": {
+    "view_schema_version": "1.1.0",
+    "source_schema_version": "2.5.0",
+    "weapon_count": 654,
+    "counts": {
+      "lookup": 654,
+      "profiles": 654,
+      "compare": 654,
+      "search": 654
+    },
+    "paths": {
+      "lookup": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/views/weapon_lookup.json",
+      "profiles": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/views/weapon_profiles.json",
+      "compare": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/views/weapon_compare.json",
+      "search": "/workspaces/Warframe-Weapon-Optimization-Assistant/data/views/weapon_search.json"
+    }
+  }
 }

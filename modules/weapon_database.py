@@ -1,3 +1,5 @@
+#weapon_database.py
+
 from __future__ import annotations
 
 import argparse
@@ -1642,6 +1644,18 @@ def build_database(
     }
 
     save_json(output_path, database)
+
+    # Generate compact deterministic views for each Cephalon tool.
+    # Imported locally so the canonical database remains independent
+    # from runtime tool loading.
+    from modules.weapon_views import build_weapon_views
+
+    views_report = build_weapon_views(
+        database_path=output_path,
+    )
+
+    report["generated_views"] = views_report
+
     save_json(report_path, report)
     return report
 
@@ -1700,6 +1714,20 @@ def command_build(args: argparse.Namespace) -> None:
     print()
     print(f"Database: {args.output}")
     print(f"Report:   {args.report}")
+
+    views = report.get("generated_views", {})
+    paths = (
+        views.get("paths", {})
+        if isinstance(views, dict)
+        else {}
+    )
+
+    if paths:
+        print()
+        print("Generated tool views:")
+
+        for name, path in paths.items():
+            print(f"  {name:<10} {path}")
 
 
 def command_inspect(args: argparse.Namespace) -> None:
