@@ -38,6 +38,11 @@ from modules.weapon_views import (
     WeaponViewDatabase,
 )
 
+from modules.warframe_localization import (
+    SPANISH_LOCALIZATION_GUIDE,
+    localize_tool_result,
+)
+
 
 # ============================================================
 # CONFIGURATION
@@ -46,12 +51,14 @@ from modules.weapon_views import (
 DATABASE_PATH = Path("data/normalized/weapons.json")
 
 MODEL_PATH = Path(
-    "models/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+    "models/Qwen_Qwen3.5-4B-Q4_K_M.gguf"
 )
 
 DEFAULT_N_CTX = 4096
 DEFAULT_THREADS = 4
 DEFAULT_GPU_LAYERS = 0
+
+MAX_TOOL_STEPS = 3
 
 
 SYSTEM_PROMPT = """
@@ -61,7 +68,10 @@ You are analytical, concise, and slightly theatrical.
 Answer in the same language used by the user.
 
 The local weapon database is the source of truth.
-Use exactly one weapon tool when a database lookup is needed.
+Use weapon tools when a database lookup is needed.
+A single user request may use more than one tool sequentially when the
+answer requires information from multiple stages, such as discovering
+candidate weapons and then inspecting one exact weapon.
 
 Tool routing:
 
@@ -108,6 +118,13 @@ properties not present in the result.
 If an exact weapon is not found, do not silently guess.
 If the result is insufficient, say so clearly.
 """.strip()
+
+
+SYSTEM_PROMPT = (
+    SYSTEM_PROMPT
+    + "\n\n"
+    + SPANISH_LOCALIZATION_GUIDE
+)
 
 
 # ============================================================
@@ -459,6 +476,22 @@ def parse_qwen_tool_calls(
     return tool_calls
 
 
+def clean_model_output(
+    content: str,
+) -> str:
+    """
+    Remove Qwen visible thinking trace before presenting
+    the final response to the user.
+    """
+    if "</think>" in content:
+        content = content.split(
+            "</think>",
+            1,
+        )[1]
+
+    return content.strip()
+
+
 def parse_tool_arguments(
     raw_arguments: Any,
 ) -> dict[str, Any]:
@@ -634,7 +667,6 @@ class CephalonAgent:
             n_ctx=n_ctx,
             n_threads=n_threads,
             n_gpu_layers=n_gpu_layers,
-            chat_format="chatml-function-calling",
             verbose=False,
         )
 
@@ -643,21 +675,24 @@ class CephalonAgent:
         user_message: str,
     ) -> str:
         """
-        Two-phase tool workflow.
+        Bounded agentic tool loop.
 
-        Phase 1:
-            Qwen chooses among the four tools, or answers directly when no
-            database lookup is needed.
+        The model may:
 
-        Phase 2:
-            Requested deterministic tool calls are executed. Tools are then
-            disabled and the model answers from the verified results.
+        1. Answer directly.
+        2. Call a deterministic weapon tool.
+        3. Observe its result.
+        4. Call another tool if the original request still requires
+           additional information.
+        5. Answer when enough verified information is available.
 
-        Keeping phase 2 tool-free prevents the recursive tool loop observed
-        with the generic ChatML function-calling adapter.
+        Tool use is capped by MAX_TOOL_STEPS so the model cannot enter
+        an unbounded tool loop.
         """
 
-        messages: list[dict[str, Any]] = [
+        messages: list[
+            dict[str, Any]
+        ] = [
             {
                 "role": "system",
                 "content": SYSTEM_PROMPT,
@@ -668,175 +703,289 @@ class CephalonAgent:
             },
         ]
 
-        response = self.llm.create_chat_completion(
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.1,
-            max_tokens=320,
-        )
-
-        message = response["choices"][0]["message"]
-
-        tool_calls = (
-            message.get("tool_calls")
-            or []
-        )
-
-        content = message.get(
-            "content"
-        )
-
-        # Normal llama-cpp/OpenAI-style tool calls have priority.
-        # Fall back to Qwen's native XML-like representation only
-        # when the adapter did not expose message["tool_calls"].
-        if not tool_calls:
-            tool_calls = parse_qwen_tool_calls(
-                content
+        for step in range(
+            1,
+            MAX_TOOL_STEPS + 1,
+        ):
+            response = (
+                self.llm.create_chat_completion(
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    temperature=0.1,
+                    max_tokens=640,
+                )
             )
 
-            if (
-                tool_calls
-                and self.debug
-            ):
+            message = (
+                response["choices"][0]["message"]
+            )
+
+            content = message.get(
+                "content"
+            )
+
+            tool_calls = (
+                message.get("tool_calls")
+                or []
+            )
+
+            fallback_used = False
+
+            # Normal llama-cpp/OpenAI-style tool calls have priority.
+            # Fall back to Qwen native XML-like calls only when needed.
+            if not tool_calls:
+                tool_calls = (
+                    parse_qwen_tool_calls(
+                        content
+                    )
+                )
+
+                fallback_used = bool(
+                    tool_calls
+                )
+
+                if (
+                    fallback_used
+                    and self.debug
+                ):
+                    print(
+                        "\n[QWEN NATIVE TOOL CALL FALLBACK]"
+                    )
+
+            # No tool call means the model considers the task complete.
+            if not tool_calls:
+                if content:
+                    return clean_model_output(
+                        content
+                    )
+
+                return (
+                    "The model returned neither "
+                    "a tool call nor a response."
+                )
+
+            if self.debug:
                 print(
-                    "\n[QWEN NATIVE TOOL CALL FALLBACK]"
+                    f"\n[AGENT STEP {step}/{MAX_TOOL_STEPS}]"
                 )
 
-        if not tool_calls:
-            if content:
-                return content.strip()
+            normalized_tool_calls: list[
+                dict[str, Any]
+            ] = []
 
-            return (
-                "The model returned neither a tool call nor a response."
-            )
-
-        retrieved_results: list[
-            dict[str, Any]
-        ] = []
-
-        for tool_call in tool_calls:
-            function = tool_call.get(
-                "function",
-                {},
-            )
-
-            tool_name = function.get(
-                "name",
-                "",
-            )
-
-            raw_arguments = function.get(
-                "arguments",
-                "{}",
-            )
-
-            try:
-                arguments = parse_tool_arguments(
-                    raw_arguments
+            # Guarantee stable IDs for tool-result association.
+            for index, tool_call in enumerate(
+                tool_calls,
+                start=1,
+            ):
+                normalized_call = dict(
+                    tool_call
                 )
+
+                if (
+                    fallback_used
+                    or not normalized_call.get(
+                        "id"
+                    )
+                ):
+                    normalized_call["id"] = (
+                        f"cephalon_{step}_{index}"
+                    )
+
+                normalized_tool_calls.append(
+                    normalized_call
+                )
+
+            # Store the assistant decision in conversation history.
+            #
+            # When the native-Qwen fallback was used, content already
+            # contains the XML representation of the same tool call.
+            # Do not duplicate that XML; preserve only the normalized
+            # structured tool call.
+            assistant_content = (
+                ""
+                if fallback_used
+                else content
+            )
+
+            # Qwen3.5 native chat template expects
+            # function.arguments to be a mapping, not a JSON string.
+            # Keep normalized_tool_calls unchanged for execution,
+            # but convert arguments before storing the assistant
+            # tool call in conversation history.
+            history_tool_calls: list[
+                dict[str, Any]
+            ] = []
+
+            for tool_call in (
+                normalized_tool_calls
+            ):
+                history_call = dict(
+                    tool_call
+                )
+
+                history_function = dict(
+                    history_call.get(
+                        "function",
+                        {},
+                    )
+                )
+
+                raw_history_arguments = (
+                    history_function.get(
+                        "arguments",
+                        {},
+                    )
+                )
+
+                try:
+                    history_arguments = (
+                        parse_tool_arguments(
+                            raw_history_arguments
+                        )
+                    )
+                except ValueError:
+                    history_arguments = {}
+
+                history_function[
+                    "arguments"
+                ] = history_arguments
+
+                history_call[
+                    "function"
+                ] = history_function
+
+                history_tool_calls.append(
+                    history_call
+                )
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": assistant_content,
+                    "tool_calls":
+                        history_tool_calls,
+                }
+            )
+
+            for tool_call in (
+                normalized_tool_calls
+            ):
+                function = tool_call.get(
+                    "function",
+                    {},
+                )
+
+                tool_name = function.get(
+                    "name",
+                    "",
+                )
+
+                raw_arguments = function.get(
+                    "arguments",
+                    "{}",
+                )
+
+                try:
+                    arguments = (
+                        parse_tool_arguments(
+                            raw_arguments
+                        )
+                    )
+
+                    if self.debug:
+                        print(
+                            "\n[CEPHALON TOOL CALL]"
+                        )
+                        print(
+                            json.dumps(
+                                {
+                                    "tool":
+                                        tool_name,
+                                    "arguments":
+                                        arguments,
+                                },
+                                indent=2,
+                                ensure_ascii=False,
+                            )
+                        )
+
+                    result = execute_tool(
+                        database=self.database,
+                        tool_name=tool_name,
+                        arguments=arguments,
+                    )
+
+                    result = localize_tool_result(
+                        result
+                    )
+
+                except Exception as exc:
+                    arguments = {}
+
+                    result = {
+                        "error": str(exc)
+                    }
 
                 if self.debug:
                     print(
-                        "\n[CEPHALON TOOL CALL]"
+                        "\n[TOOL RESULT]"
                     )
                     print(
                         json.dumps(
-                            {
-                                "tool": tool_name,
-                                "arguments": arguments,
-                            },
+                            result,
                             indent=2,
                             ensure_ascii=False,
                         )
                     )
 
-                result = execute_tool(
-                    database=self.database,
-                    tool_name=tool_name,
-                    arguments=arguments,
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id":
+                            tool_call["id"],
+                        "content":
+                            json.dumps(
+                                result,
+                                ensure_ascii=False,
+                            ),
+                    }
                 )
 
-            except Exception as exc:
-                arguments = {}
-                result = {
-                    "error": str(exc)
-                }
+        # ----------------------------------------------------
+        # Safety boundary:
+        # after MAX_TOOL_STEPS, tools are disabled and the
+        # model must answer using observations already gathered.
+        # ----------------------------------------------------
 
-            if self.debug:
-                print("\n[TOOL RESULT]")
-                print(
-                    json.dumps(
-                        result,
-                        indent=2,
-                        ensure_ascii=False,
-                    )
-                )
-
-            retrieved_results.append(
-                {
-                    "tool": tool_name,
-                    "arguments": arguments,
-                    "result": result,
-                }
-            )
-
-        tool_payload = json.dumps(
-            retrieved_results,
-            ensure_ascii=False,
-        )
-
-        final_system_prompt = (
-            SYSTEM_PROMPT
-            + "\n\n"
-            + "Verified local database tool calls have already been "
-              "completed for this turn. No tools are available now. "
-              "Answer using ONLY the retrieved result. Interpret field names "
-              "literally and do not reconstruct hidden percentiles, scores, "
-              "mechanics, or outside Warframe knowledge. "
-              "For compare_weapons, values are grouped by weapon: never swap "
-              "a value from one weapon to another. "
-              "For search_weapons, every returned result already satisfies "
-              "the requested criteria and the rank is deterministic: preserve "
-              "that rank and do not rerank. "
-              "For Riven data, disposition describes Riven mod stat scaling; "
-              "it is not a direct multiplier to the weapon's base statistics. "
-              "If the result is missing or insufficient, say so clearly."
-        )
-
-        final_messages: list[
-            dict[str, Any]
-        ] = [
-            {
-                "role": "system",
-                "content": final_system_prompt,
-            },
-            {
-                "role": "user",
-                "content": user_message,
-            },
+        messages.append(
             {
                 "role": "user",
                 "content": (
-                    "Verified database result:\n"
-                    "<tool_response>\n"
-                    + tool_payload
-                    + "\n</tool_response>\n\n"
-                    "Now answer the original question."
+                    "The tool-use limit has been reached. "
+                    "Do not request another tool. "
+                    "Answer the original question using only "
+                    "the verified tool results already present "
+                    "in the conversation."
                 ),
-            },
-        ]
+            }
+        )
 
-        final_response = self.llm.create_chat_completion(
-            messages=final_messages,
-            tools=None,
-            tool_choice="none",
-            temperature=0.1,
-            max_tokens=640,
+        final_response = (
+            self.llm.create_chat_completion(
+                messages=messages,
+                tools=None,
+                tool_choice="none",
+                temperature=0.1,
+                max_tokens=640,
+            )
         )
 
         final_message = (
-            final_response["choices"][0]["message"]
+            final_response[
+                "choices"
+            ][0]["message"]
         )
 
         content = final_message.get(
@@ -844,10 +993,13 @@ class CephalonAgent:
         )
 
         if content:
-            return content.strip()
+            return clean_model_output(
+                content
+            )
 
         return (
-            "The model received the database result but produced no final answer."
+            "The model reached the tool-use limit "
+            "but produced no final answer."
         )
 
 

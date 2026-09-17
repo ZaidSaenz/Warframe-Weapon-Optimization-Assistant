@@ -19,3 +19,7 @@ data/generated/
 .vscode/
 .DS_Store
 Thumbs.db
+models/*.gguf
+*.pyc
+*.bak
+logs/*.log

@@ -1,3 +1,3 @@
 Flask==3.1.3
-llama-cpp-python==0.3.23
+llama-cpp-python==0.3.35
 pytest==9.1.1
