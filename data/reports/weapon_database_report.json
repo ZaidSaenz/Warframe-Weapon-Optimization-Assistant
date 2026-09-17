@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.5.0",
+  "schema_version": "2.5.1",
   "raw_entries": 843,
   "selectable_weapons_before_name_canonicalization": 656,
   "selected_weapons": 654,
@@ -118,7 +118,7 @@
     "Canonical stat objects keep the same type whether or not population statistics are available.",
     "Riven disposition uses a fixed rule instead of population percentiles.",
     "Accuracy is preserved as raw_accuracy_value and is not semantically interpreted.",
-    "Nested behaviour procChance values are preserved as proc_chance_raw until their exact semantics are verified.",
+    "Nested behaviour procChance values are normalized as status_chance_percent from 0 to 100.",
     "Behaviour records preserve structural damage components without semantic merging.",
     "Behaviour roles are conservative: primary, alternate_mode, or unclassified.",
     "The first behaviour compatible with the root trigger becomes primary.",
@@ -132,7 +132,7 @@
   ],
   "generated_views": {
     "view_schema_version": "1.1.0",
-    "source_schema_version": "2.5.0",
+    "source_schema_version": "2.5.1",
     "weapon_count": 654,
     "counts": {
       "lookup": 654,

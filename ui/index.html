@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>S-7 Cephalon</title>
+
+    <link
+        rel="stylesheet"
+        href="./css/base.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="./css/cephalon.css"
+    >
+</head>
+
+<body>
+
+    <main class="app">
+
+        <!-- =========================================
+             CEPHALON STAGE
+        ========================================== -->
+
+        <section class="stage">
+
+            <div
+                id="cephalon"
+                class="cephalon state-idle"
+            >
+
+                <!-- BODY
+                     Más adelante este bloque será:
+                     body_base.webp
+                -->
+
+                <div
+                    class="cephalon-part
+                           cephalon-body
+                           placeholder"
+                >
+                </div>
+
+
+                <!-- HEAD GROUP
+                     Todo lo que esté aquí seguirá
+                     el movimiento principal de cabeza
+                -->
+
+                <div class="cephalon-head">
+
+                    <!-- HEAD SHELL
+                         Después:
+                         head_shell.webp
+                    -->
+
+                    <div
+                        class="cephalon-part
+                               cephalon-head-shell
+                               placeholder"
+                    >
+                    </div>
+
+
+                    <!-- EYE
+                         Este sí será SVG incluso
+                         en la versión final
+                    -->
+
+                    <svg
+                        class="cephalon-eye"
+                        viewBox="0 0 100 100"
+                        aria-hidden="true"
+                    >
+
+                        <circle
+                            class="cephalon-eye-ring"
+                            cx="50"
+                            cy="50"
+                            r="32"
+                        />
+
+                    </svg>
+
+                </div>
+
+
+                <!-- LEFT ANTENNA
+                     Después:
+                     antenna_left.webp
+                -->
+
+                <div
+                    class="cephalon-part
+                           cephalon-antenna-left
+                           placeholder"
+                >
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =========================================
+             TEMPORARY DEVELOPMENT CONTROLS
+        ========================================== -->
+
+        <aside class="debug-panel">
+
+            <div class="debug-title">
+                S-7 RIG TEST
+            </div>
+
+            <div class="debug-status">
+
+                STATE:
+
+                <span id="state-label">
+                    IDLE
+                </span>
+
+            </div>
+
+            <div class="debug-controls">
+
+                <button data-state="idle">
+                    Idle
+                </button>
+
+                <button data-state="listening">
+                    Listening
+                </button>
+
+                <button data-state="thinking">
+                    Thinking
+                </button>
+
+                <button data-state="speaking">
+                    Speaking
+                </button>
+
+                <button data-state="warning">
+                    Warning
+                </button>
+
+            </div>
+
+        </aside>
+
+    </main>
+
+
+    <script
+        type="module"
+        src="./js/app.js"
+    ></script>
+
+</body>
+</html>

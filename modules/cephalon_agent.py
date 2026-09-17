@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -346,6 +347,118 @@ TOOLS = [
 
 
 
+def parse_qwen_tool_calls(
+    content: Any,
+) -> list[dict[str, Any]]:
+    """
+    Fallback for Qwen native XML-like tool calls.
+
+    Normal OpenAI-style message["tool_calls"] always has priority.
+    This parser runs only when llama-cpp-python leaves a native
+    <tool_call> block inside message["content"].
+    """
+
+    if not isinstance(
+        content,
+        str,
+    ):
+        return []
+
+    if "<tool_call>" not in content:
+        return []
+
+    call_pattern = re.compile(
+        r"<tool_call>\s*"
+        r"<function=([^>\s]+)>\s*"
+        r"(.*?)"
+        r"</function>\s*"
+        r"</tool_call>",
+        re.DOTALL,
+    )
+
+    parameter_pattern = re.compile(
+        r"<parameter=([^>\s]+)>\s*"
+        r"(.*?)"
+        r"</parameter>",
+        re.DOTALL,
+    )
+
+    tool_calls: list[
+        dict[str, Any]
+    ] = []
+
+    for index, match in enumerate(
+        call_pattern.finditer(
+            content
+        ),
+        start=1,
+    ):
+        tool_name = (
+            match.group(1).strip()
+        )
+
+        parameter_block = (
+            match.group(2)
+        )
+
+        arguments: dict[
+            str,
+            Any,
+        ] = {}
+
+        for parameter_match in (
+            parameter_pattern.finditer(
+                parameter_block
+            )
+        ):
+            key = (
+                parameter_match
+                .group(1)
+                .strip()
+            )
+
+            raw_value = (
+                parameter_match
+                .group(2)
+                .strip()
+            )
+
+            try:
+                value = json.loads(
+                    raw_value
+                )
+
+            except json.JSONDecodeError:
+                value = raw_value
+
+            arguments[
+                key
+            ] = value
+
+        tool_calls.append(
+            {
+                "id":
+                    f"qwen_native_{index}",
+
+                "type":
+                    "function",
+
+                "function": {
+                    "name":
+                        tool_name,
+
+                    "arguments":
+                        json.dumps(
+                            arguments,
+                            ensure_ascii=False,
+                        ),
+                },
+            }
+        )
+
+    return tool_calls
+
+
 def parse_tool_arguments(
     raw_arguments: Any,
 ) -> dict[str, Any]:
@@ -570,9 +683,27 @@ class CephalonAgent:
             or []
         )
 
-        if not tool_calls:
-            content = message.get("content")
+        content = message.get(
+            "content"
+        )
 
+        # Normal llama-cpp/OpenAI-style tool calls have priority.
+        # Fall back to Qwen's native XML-like representation only
+        # when the adapter did not expose message["tool_calls"].
+        if not tool_calls:
+            tool_calls = parse_qwen_tool_calls(
+                content
+            )
+
+            if (
+                tool_calls
+                and self.debug
+            ):
+                print(
+                    "\n[QWEN NATIVE TOOL CALL FALLBACK]"
+                )
+
+        if not tool_calls:
             if content:
                 return content.strip()
 

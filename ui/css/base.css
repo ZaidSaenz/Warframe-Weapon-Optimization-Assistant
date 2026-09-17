@@ -1,0 +1,198 @@
+/* =========================================
+   GLOBAL RESET
+========================================= */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+
+html,
+body {
+    margin: 0;
+
+    width: 100%;
+    min-height: 100%;
+
+    background: #0b1110;
+}
+
+
+body {
+    min-height: 100vh;
+
+    color: #d9dfdb;
+
+    font-family:
+        "Courier New",
+        monospace;
+
+    overflow: hidden;
+}
+
+
+/* =========================================
+   MAIN APPLICATION
+========================================= */
+
+.app {
+    width: 100vw;
+    height: 100vh;
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1fr)
+        260px;
+
+    background:
+
+        radial-gradient(
+            circle at 35% 40%,
+            #1b2924 0%,
+            #101816 32%,
+            #080c0b 75%
+        );
+}
+
+
+/* =========================================
+   CHARACTER STAGE
+========================================= */
+
+.stage {
+    position: relative;
+
+    display: grid;
+    place-items: center;
+
+    overflow: hidden;
+}
+
+
+/* subtle background */
+
+.stage::before {
+    content: "";
+
+    position: absolute;
+
+    width: 70vmin;
+    height: 70vmin;
+
+    border: 1px solid
+        rgba(181, 223, 196, 0.08);
+
+    border-radius: 50%;
+}
+
+
+/* =========================================
+   DEVELOPMENT PANEL
+========================================= */
+
+.debug-panel {
+    position: relative;
+
+    z-index: 20;
+
+    padding: 30px 20px;
+
+    border-left:
+        1px solid rgba(
+            210,
+            230,
+            220,
+            0.12
+        );
+
+    background:
+        rgba(
+            5,
+            10,
+            9,
+            0.72
+        );
+
+    backdrop-filter:
+        blur(10px);
+}
+
+
+.debug-title {
+    margin-bottom: 30px;
+
+    font-size: 13px;
+
+    letter-spacing: 0.18em;
+}
+
+
+.debug-status {
+    margin-bottom: 24px;
+
+    font-size: 11px;
+
+    color: #87938c;
+}
+
+
+#state-label {
+    color: #dffff0;
+}
+
+
+.debug-controls {
+    display: grid;
+
+    gap: 10px;
+}
+
+
+.debug-controls button {
+    padding: 10px 14px;
+
+    border:
+        1px solid
+        rgba(
+            205,
+            240,
+            220,
+            0.15
+        );
+
+    border-radius: 4px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            0.03
+        );
+
+    color: #bac8c0;
+
+    font-family: inherit;
+
+    font-size: 11px;
+
+    letter-spacing: 0.08em;
+
+    cursor: pointer;
+}
+
+
+.debug-controls button:hover {
+    background:
+        rgba(
+            200,
+            255,
+            220,
+            0.08
+        );
+
+    color: white;
+}

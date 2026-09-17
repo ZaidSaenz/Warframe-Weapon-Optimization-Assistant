@@ -20,7 +20,7 @@ LOCALIZATION_PATH = Path("data/raw/dict.en.json")
 OUTPUT_PATH = Path("data/normalized/weapons.json")
 REPORT_PATH = Path("data/reports/weapon_database_report.json")
 
-SCHEMA_VERSION = "2.5.0"
+SCHEMA_VERSION = "2.5.1"
 
 
 # ---------------------------------------------------------------------------
@@ -495,9 +495,19 @@ def extract_damage_components(node: Any, path: str = "") -> list[dict[str, Any]]
                     "by_type": damage,
                 },
             }
-            proc = as_number(node.get("procChance"))
+            proc = as_number(
+                node.get("procChance")
+            )
+
             if proc is not None:
-                component["proc_chance_raw"] = clean_number(proc)
+                status_percent = fraction_to_percent(
+                    proc
+                )
+
+                if status_percent is not None:
+                    component[
+                        "status_chance_percent"
+                    ] = status_percent
             components.append(component)
 
         for key, value in node.items():
@@ -1629,7 +1639,7 @@ def build_database(
             "Canonical stat objects keep the same type whether or not population statistics are available.",
             "Riven disposition uses a fixed rule instead of population percentiles.",
             "Accuracy is preserved as raw_accuracy_value and is not semantically interpreted.",
-            "Nested behaviour procChance values are preserved as proc_chance_raw until their exact semantics are verified.",
+            "Nested behaviour procChance values are normalized as status_chance_percent from 0 to 100.",
             "Behaviour records preserve structural damage components without semantic merging.",
             "Behaviour roles are conservative: primary, alternate_mode, or unclassified.",
             "The first behaviour compatible with the root trigger becomes primary.",
